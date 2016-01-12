@@ -16,11 +16,13 @@ import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
+import android.hardware.camera2.params.StreamConfigurationMap;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+import android.util.Size;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
@@ -35,8 +37,8 @@ public class Camera extends AppCompatActivity {
   private static final String TAG = "Time Lapse";
 
 
-  private final TextureView.SurfaceTextureListener
-      mSurfaceTextureListener = new TextureView.SurfaceTextureListener() {
+  private final TextureView.SurfaceTextureListener mSurfaceTextureListener =
+      new TextureView.SurfaceTextureListener() {
 
     @Override
     public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
@@ -52,9 +54,10 @@ public class Camera extends AppCompatActivity {
       float centerY = viewRect.centerY();
       if (Surface.ROTATION_90 == rotation || Surface.ROTATION_270 == rotation) {
         matrix.postRotate(90 * (rotation - 2), centerX, centerY);
-        matrix.postScale(width / (float) height, 1.0f, centerX, centerY);
-      } else if (Surface.ROTATION_180 == rotation) {
-          matrix.postRotate(180, centerX, centerY);
+        matrix.postScale(width / (float) height, (height / (float) width) * (width / 1920.0f), centerX, centerY);
+      } else {
+        matrix.postRotate(90 * rotation, centerX, centerY);
+        matrix.postScale(height / 1920.0f, 1.0f, centerX, centerY);
       }
       mPreviewView.setTransform(matrix);
     }
@@ -70,18 +73,22 @@ public class Camera extends AppCompatActivity {
 
   };
 
-  private final CameraDevice.StateCallback mCameraStateCallback = new CameraDevice.StateCallback() {
+  private final CameraDevice.StateCallback mCameraStateCallback =
+      new CameraDevice.StateCallback() {
     @Override
-    public void onOpened(CameraDevice camera) {
+    public void onOpened(@NonNull CameraDevice camera) {
       Log.d(TAG, "Camera Opened");
       try {
         final CameraDevice finalCamera = camera;
-        final Surface surface = new Surface(mPreviewView.getSurfaceTexture());
+        final SurfaceTexture surfaceTexture = mPreviewView.getSurfaceTexture();
+        surfaceTexture.setDefaultBufferSize(1920, 1080);
+        final Surface surface = new Surface(surfaceTexture);
+
         camera.createCaptureSession(Arrays.asList(surface),
             new CameraCaptureSession.StateCallback() {
 
               @Override
-              public void onConfigured(CameraCaptureSession session) {
+              public void onConfigured(@NonNull CameraCaptureSession session) {
                 Log.d(TAG, "configured");
                 CaptureRequest.Builder previewRequestBuilder;
                 try {
@@ -120,6 +127,7 @@ public class Camera extends AppCompatActivity {
     }
   };
 
+  private CameraCharacteristics mCameraCharacteristics;
   private TextureView mPreviewView;
 
   @Override
@@ -155,15 +163,14 @@ public class Camera extends AppCompatActivity {
     for (String cameraId: cameraIdList) {
       Log.d(TAG, cameraId);
 
-      CameraCharacteristics characteristics;
       try {
-        characteristics = manager.getCameraCharacteristics(cameraId);
+        mCameraCharacteristics = manager.getCameraCharacteristics(cameraId);
       } catch (CameraAccessException e) {
         Log.e(TAG, "", e);
         return;
       }
 
-      int cameraDir = characteristics.get(CameraCharacteristics.LENS_FACING);
+      int cameraDir = mCameraCharacteristics.get(CameraCharacteristics.LENS_FACING);
       final Handler handler = new Handler(this.getMainLooper());
       if (cameraDir == CameraMetadata.LENS_FACING_BACK) {
         Log.d(TAG, "Back camera");
@@ -177,9 +184,22 @@ public class Camera extends AppCompatActivity {
           Log.d(TAG, "Camera permission denied :(");
           requestPermissions(new String[]{ Manifest.permission.CAMERA }, 0);
         }
+
+        StreamConfigurationMap configs = mCameraCharacteristics.get(
+            CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        int[] supportedOutputFormats = configs.getOutputFormats();
+        for (int format: supportedOutputFormats) {
+          Log.d(TAG, "Supported format: " + format);
+          Size[] sizes = configs.getOutputSizes(format);
+          for (Size size: sizes) {
+            Log.d(TAG, size.toString() + "\t -- Stall " + configs.getOutputStallDuration(format, size));
+          }
+        }
       } else if (cameraDir == CameraMetadata.LENS_FACING_FRONT) {
         Log.d(TAG, "Front camera");
       }
+
+
     }
   }
 
