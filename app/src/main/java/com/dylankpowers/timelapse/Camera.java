@@ -37,6 +37,7 @@ public class Camera extends AppCompatActivity {
 
     private CameraDevice mCamera;
     private CameraManager mCameraManager;
+    private CameraCaptureSession mPreviewCaptureSession;
     private Surface mPreviewSurface;
     private TextureView mPreviewView;
 
@@ -75,14 +76,12 @@ public class Camera extends AppCompatActivity {
         @Override
         public void onCaptureProgressed(@NonNull CameraCaptureSession session,
                                         @NonNull CaptureRequest request,
-                                        @NonNull CaptureResult partialResult) {
-        }
+                                        @NonNull CaptureResult partialResult) { }
 
         @Override
         public void onCaptureCompleted(@NonNull CameraCaptureSession session,
                                        @NonNull CaptureRequest request,
-                                       @NonNull TotalCaptureResult result) {
-        }
+                                       @NonNull TotalCaptureResult result) { }
     };
 
     private final CameraCaptureSession.StateCallback
@@ -90,6 +89,8 @@ public class Camera extends AppCompatActivity {
         @Override
         public void onConfigured(@NonNull CameraCaptureSession session) {
             Log.d(TAG, "configured");
+            mPreviewCaptureSession = session;
+
             CaptureRequest.Builder previewRequestBuilder;
             try {
                 previewRequestBuilder = mCamera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
@@ -119,7 +120,7 @@ public class Camera extends AppCompatActivity {
             texture.setDefaultBufferSize(1920, 1080);
             mPreviewSurface = new Surface(texture);
 
-            doCameraThangs();
+            openCamera();
         }
 
         @Override
@@ -141,12 +142,12 @@ public class Camera extends AppCompatActivity {
 
         @Override
         public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
+            closeCamera();
             return true;
         }
 
         @Override
-        public void onSurfaceTextureUpdated(SurfaceTexture texture) {
-        }
+        public void onSurfaceTextureUpdated(SurfaceTexture texture) { }
     };
 
     @Override
@@ -168,44 +169,18 @@ public class Camera extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
-        if (mPreviewView.isAvailable()) {
-            doCameraThangs();
-        } else {
+        if (!mPreviewView.isAvailable()) {
             mPreviewView.setSurfaceTextureListener(mSurfaceTextureListener);
         }
     }
 
-    private void doCameraThangs() {
-        String rearCameraId = findRearCameraId();
-
-        Handler handler = new Handler(getMainLooper());
-        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            try {
-                mCameraManager.openCamera(rearCameraId, mCameraStateCallback, handler);
-            } catch (CameraAccessException e) {
-                Log.e(TAG, "Errors n such", e);
-            }
-        } else {
-            Log.d(TAG, "Camera permission denied :(");
-            requestPermissions(new String[]{Manifest.permission.CAMERA}, 0);
+    private void closeCamera() {
+        if (mPreviewCaptureSession != null) {
+            mPreviewCaptureSession.close();
         }
 
-        CameraCharacteristics cameraCharacteristics;
-        try {
-            cameraCharacteristics = mCameraManager.getCameraCharacteristics(rearCameraId);
-        } catch (CameraAccessException e) {
-            throw new RuntimeException(e);
-        }
-
-        StreamConfigurationMap configs = cameraCharacteristics.get(
-                CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        int[] supportedOutputFormats = configs.getOutputFormats();
-        for (int format : supportedOutputFormats) {
-            Log.d(TAG, "Supported format: " + format);
-            Size[] sizes = configs.getOutputSizes(format);
-            for (Size size : sizes) {
-                Log.d(TAG, size.toString() + "\t -- Stall " + configs.getOutputStallDuration(format, size));
-            }
+        if (mCamera != null) {
+            mCamera.close();
         }
     }
 
@@ -242,7 +217,7 @@ public class Camera extends AppCompatActivity {
 
         if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             Log.d(TAG, "Permission granted!!!! :)))");
-            doCameraThangs();
+            openCamera();
         } else {
             Log.d(TAG, "Permission not granted :(((( " + grantResults[0]);
         }
@@ -255,6 +230,22 @@ public class Camera extends AppCompatActivity {
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_FULLSCREEN);
+        }
+    }
+
+    private void openCamera() {
+        String rearCameraId = findRearCameraId();
+
+        Handler handler = new Handler(getMainLooper());
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                mCameraManager.openCamera(rearCameraId, mCameraStateCallback, handler);
+            } catch (CameraAccessException e) {
+                Log.e(TAG, "Errors n such", e);
+            }
+        } else {
+            Log.d(TAG, "Camera permission denied :(");
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, 0);
         }
     }
 }
