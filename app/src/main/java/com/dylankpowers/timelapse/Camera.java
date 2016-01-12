@@ -16,16 +16,20 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.MediaRecorder;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.util.Size;
+import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -35,11 +39,20 @@ import java.util.Arrays;
 public class Camera extends AppCompatActivity {
     private static final String TAG = "Time Lapse";
 
+    private static final SparseIntArray ORIENTATIONS = new SparseIntArray();
+    static {
+        ORIENTATIONS.append(Surface.ROTATION_0, 90);
+        ORIENTATIONS.append(Surface.ROTATION_90, 0);
+        ORIENTATIONS.append(Surface.ROTATION_180, 270);
+        ORIENTATIONS.append(Surface.ROTATION_270, 180);
+    }
+
     private CameraDevice mCamera;
     private CameraManager mCameraManager;
     private CameraCaptureSession mPreviewCaptureSession;
     private Surface mPreviewSurface;
     private TextureView mPreviewView;
+    private MediaRecorder mVideo;
 
     private final CameraDevice.StateCallback
             mCameraStateCallback = new CameraDevice.StateCallback() {
@@ -48,13 +61,35 @@ public class Camera extends AppCompatActivity {
             Log.d(TAG, "Camera Opened");
 
             mCamera = camera;
+
+            mVideo = new MediaRecorder();
+            mVideo.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+            mVideo.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+            mVideo.setCaptureRate(15);
+            int rotation = getWindowManager().getDefaultDisplay().getRotation();
+            int orientation = ORIENTATIONS.get(rotation);
+            mVideo.setOrientationHint(orientation);
+            mVideo.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
+            mVideo.setVideoEncodingBitRate(70000000);
+            mVideo.setVideoFrameRate(60);
+            mVideo.setVideoSize(3840, 2160);
+            String path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM).getAbsolutePath();
+            String filePath = path + "/time-lapse.mp4";
+            mVideo.setOutputFile(filePath);
             try {
+                mVideo.prepare();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
-
-                camera.createCaptureSession(Arrays.asList(mPreviewSurface), mCaptureSessionStateCallback, null);
+            try {
+                camera.createCaptureSession(
+                        Arrays.asList(mPreviewSurface, mVideo.getSurface()),
+                        mCaptureSessionStateCallback, null );
             } catch (CameraAccessException e) {
                 Log.e(TAG, "Thingys go boom!", e);
             }
+
         }
 
         @Override
@@ -93,18 +128,21 @@ public class Camera extends AppCompatActivity {
 
             CaptureRequest.Builder previewRequestBuilder;
             try {
-                previewRequestBuilder = mCamera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+                previewRequestBuilder = mCamera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
             } catch (CameraAccessException e) {
                 e.printStackTrace();
                 return;
             }
 
             previewRequestBuilder.addTarget(mPreviewSurface);
+            previewRequestBuilder.addTarget(mVideo.getSurface());
             try {
                 session.setRepeatingRequest(previewRequestBuilder.build(), mCaptureCallback, new Handler(getMainLooper()));
             } catch (CameraAccessException e) {
                 e.printStackTrace();
             }
+
+            mVideo.start();   // Recording is now started
         }
 
         @Override
@@ -174,7 +212,19 @@ public class Camera extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onPause() {
+        Log.d(TAG, "pause");
+        super.onPause();
+    }
+
     private void closeCamera() {
+        Log.d(TAG, "Closing camera");
+        if (mVideo != null) {
+            mVideo.stop();
+        }
+
+
         if (mPreviewCaptureSession != null) {
             mPreviewCaptureSession.close();
         }
@@ -237,7 +287,8 @@ public class Camera extends AppCompatActivity {
         String rearCameraId = findRearCameraId();
 
         Handler handler = new Handler(getMainLooper());
-        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
             try {
                 mCameraManager.openCamera(rearCameraId, mCameraStateCallback, handler);
             } catch (CameraAccessException e) {
@@ -245,7 +296,7 @@ public class Camera extends AppCompatActivity {
             }
         } else {
             Log.d(TAG, "Camera permission denied :(");
-            requestPermissions(new String[]{Manifest.permission.CAMERA}, 0);
+            requestPermissions(new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 0);
         }
     }
 }
