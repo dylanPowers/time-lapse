@@ -1,6 +1,8 @@
 package com.dylankpowers.timelapse;
 
 import android.Manifest;
+import android.annotation.TargetApi;
+import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -9,20 +11,17 @@ import android.content.pm.PackageManager;
 import android.graphics.Matrix;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.support.annotation.NonNull;
-import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 
-/**
- * An example full-screen activity that shows and hides the system UI (i.e.
- * status bar and navigation/system bar) with user interaction.
- */
-public class Camera extends AppCompatActivity {
+
+public class Camera extends Activity {
     private static final String TAG = "TimeLapseActivity";
 
     private TimeLapseCaptureService mCaptureService;
@@ -157,17 +156,30 @@ public class Camera extends AppCompatActivity {
     }
 
     private void openCamera() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            openCameraM();
+        } else {
+            openCameraL();
+        }
+    }
+
+    @TargetApi(Build.VERSION_CODES.M)
+    private void openCameraM() {
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
-                checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-            if (mCaptureService != null) {
-                mCaptureService.openCamera(new Surface(mPreviewView.getSurfaceTexture()));
-            } else {
-                mOpenCameraWaitingOnServiceConnection = true;
-            }
+            checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+            openCameraL();
         } else {
             requestPermissions(new String[]{
                     Manifest.permission.CAMERA,
                     Manifest.permission.WRITE_EXTERNAL_STORAGE}, 0);
+        }
+    }
+
+    private void openCameraL() {
+        if (mCaptureService != null) {
+            mCaptureService.openCamera(new Surface(mPreviewView.getSurfaceTexture()));
+        } else {
+            mOpenCameraWaitingOnServiceConnection = true;
         }
     }
 
