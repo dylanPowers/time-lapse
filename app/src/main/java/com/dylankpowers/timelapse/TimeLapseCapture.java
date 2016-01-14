@@ -14,6 +14,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.util.Log;
+import android.view.Display;
 import android.view.Surface;
 
 import java.io.IOException;
@@ -25,13 +26,18 @@ public class TimeLapseCapture {
     private Handler mBackgroundHandler;
     private CameraDevice mCamera;
     private CameraManager mCameraManager;
+    private CameraCharacteristics mCameraCharacteristics;
     private CameraCaptureSession mCaptureSession;
+    private Display mDefaultDisplay;
     private Surface mPreviewSurface;
     private MediaRecorder mVideo;
 
-    public TimeLapseCapture(CameraManager cameraManager, Handler backgroundHandler) {
+    public TimeLapseCapture(CameraManager cameraManager,
+                            Handler backgroundHandler,
+                            Display defaultDisplay) {
         mCameraManager = cameraManager;
         mBackgroundHandler = backgroundHandler;
+        mDefaultDisplay = defaultDisplay;
     }
 
     private final CameraDevice.StateCallback
@@ -115,6 +121,7 @@ public class TimeLapseCapture {
 
         String rearCameraId = findRearCameraId();
         try {
+            mCameraCharacteristics = mCameraManager.getCameraCharacteristics(rearCameraId);
             mCameraManager.openCamera(rearCameraId, mCameraStateCallback, null);
         } catch (CameraAccessException e) {
             throw new RuntimeException("Unable to access the camera.", e);
@@ -170,7 +177,14 @@ public class TimeLapseCapture {
         mVideo.setVideoSource(MediaRecorder.VideoSource.SURFACE);
         mVideo.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
         mVideo.setCaptureRate(15);
-        mVideo.setOrientationHint(180);
+
+        int videoOrientation = mCameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) - 90;
+        int deviceRotation = mDefaultDisplay.getRotation();
+        if (deviceRotation == Surface.ROTATION_270) {
+            videoOrientation = (videoOrientation + 180) % 360;
+        }
+
+        mVideo.setOrientationHint(videoOrientation);
         mVideo.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
         mVideo.setVideoEncodingBitRate(30000000);
         mVideo.setVideoFrameRate(60);

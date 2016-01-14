@@ -9,7 +9,9 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.util.Log;
+import android.view.Display;
 import android.view.Surface;
+import android.view.WindowManager;
 
 
 public class TimeLapseCaptureService extends Service {
@@ -40,10 +42,11 @@ public class TimeLapseCaptureService extends Service {
     public void onCreate() {
         Log.d(TAG, "Created");
         CameraManager cMan = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
-        mBackgroundThread = new HandlerThread("CameraBackground");
+        Display defaultDisplay = ((WindowManager) getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+        mBackgroundThread = new HandlerThread("TimeLapseCaptureBackground");
         mBackgroundThread.start();
         Handler backgroundHandler = new Handler(mBackgroundThread.getLooper());
-        mCapture = new TimeLapseCapture(cMan, backgroundHandler);
+        mCapture = new TimeLapseCapture(cMan, backgroundHandler, defaultDisplay);
     }
 
     @Override
