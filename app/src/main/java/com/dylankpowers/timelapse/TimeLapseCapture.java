@@ -22,14 +22,16 @@ import java.util.Arrays;
 public class TimeLapseCapture {
     private static final String TAG = "TimeLapseCapture";
 
+    private Handler mBackgroundHandler;
     private CameraDevice mCamera;
     private CameraManager mCameraManager;
     private CameraCaptureSession mCaptureSession;
     private Surface mPreviewSurface;
     private MediaRecorder mVideo;
 
-    public TimeLapseCapture(CameraManager cameraManager) {
+    public TimeLapseCapture(CameraManager cameraManager, Handler backgroundHandler) {
         mCameraManager = cameraManager;
+        mBackgroundHandler = backgroundHandler;
     }
 
     private final CameraDevice.StateCallback
@@ -42,11 +44,10 @@ public class TimeLapseCapture {
             try {
                 camera.createCaptureSession(
                         Arrays.asList(mPreviewSurface, mVideo.getSurface()),
-                        mCaptureSessionStateCallback, null );
+                        mCaptureSessionStateCallback, mBackgroundHandler);
             } catch (CameraAccessException e) {
                 throw new RuntimeException("Can't access the camera.", e);
             }
-
         }
 
         @Override
@@ -82,7 +83,7 @@ public class TimeLapseCapture {
             try {
                 session.setRepeatingRequest(
                         previewRequestBuilder.build(),
-                        mCaptureCallback, null);
+                        mCaptureCallback, mBackgroundHandler);
             } catch (CameraAccessException e) {
                 throw new RuntimeException("Can't access the camera", e);
             }

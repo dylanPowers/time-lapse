@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.hardware.camera2.CameraManager;
 import android.os.Binder;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.util.Log;
 import android.view.Surface;
@@ -13,6 +15,7 @@ import android.view.Surface;
 public class TimeLapseCaptureService extends Service {
     private static final String TAG = "TimeLapseCaptureService";
 
+    private HandlerThread mBackgroundThread;
     private final IBinder mBinder = new ServiceBinder();
     private TimeLapseCapture mCapture;
 
@@ -35,8 +38,24 @@ public class TimeLapseCaptureService extends Service {
 
     @Override
     public void onCreate() {
+        Log.d(TAG, "Created");
         CameraManager cMan = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
-        mCapture = new TimeLapseCapture(cMan);
+        mBackgroundThread = new HandlerThread("CameraBackground");
+        mBackgroundThread.start();
+        Handler backgroundHandler = new Handler(mBackgroundThread.getLooper());
+        mCapture = new TimeLapseCapture(cMan, backgroundHandler);
+    }
+
+    @Override
+    public void onDestroy() {
+        Log.d(TAG, "Destroyed");
+        mBackgroundThread.quitSafely();
+        try {
+            mBackgroundThread.join();
+            mBackgroundThread = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     public void openCamera(Surface previewSurface) {
