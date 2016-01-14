@@ -9,6 +9,7 @@ import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
+import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
 import android.os.Environment;
 import android.os.Handler;
@@ -172,6 +173,7 @@ public class TimeLapseCapture {
         throw new RuntimeException("The rear camera was not found");
     }
 
+    private static final int VIDEO_FPS = 60;
     private void setupVideoRecorder() {
         mVideo = new MediaRecorder();
         mVideo.setVideoSource(MediaRecorder.VideoSource.SURFACE);
@@ -184,11 +186,14 @@ public class TimeLapseCapture {
             videoOrientation = (videoOrientation + 180) % 360;
         }
 
+        CamcorderProfile profile = CamcorderProfile.get(CamcorderProfile.QUALITY_1080P);
         mVideo.setOrientationHint(videoOrientation);
         mVideo.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-        mVideo.setVideoEncodingBitRate(30000000);
-        mVideo.setVideoFrameRate(60);
-        mVideo.setVideoSize(1920, 1080);
+        double log2FrameRateRatio = Math.log10(VIDEO_FPS / profile.videoFrameRate) / Math.log10(2);
+        double bitrateChangeRatio = Math.pow(1.5, log2FrameRateRatio);
+        mVideo.setVideoEncodingBitRate((int) (profile.videoBitRate * bitrateChangeRatio));
+        mVideo.setVideoFrameRate(VIDEO_FPS);
+        mVideo.setVideoSize(profile.videoFrameWidth, profile.videoFrameHeight);
         String path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
                 .getAbsolutePath();
         String filePath = path + "/time-lapse.mp4";
