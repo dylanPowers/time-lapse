@@ -28,6 +28,7 @@ public class TimeLapseCapture {
     private CameraDevice mCamera;
     private CameraManager mCameraManager;
     private CameraCharacteristics mCameraCharacteristics;
+    private CameraReadyCallback mCameraReadyCallback;
     private CameraCaptureSession mCaptureSession;
     private Display mDefaultDisplay;
     private Surface mPreviewSurface;
@@ -47,9 +48,8 @@ public class TimeLapseCapture {
         public void onOpened(@NonNull CameraDevice camera) {
             mCamera = camera;
             setupVideoRecorder();
-
             try {
-                camera.createCaptureSession(
+                mCamera.createCaptureSession(
                         Arrays.asList(mPreviewSurface, mVideo.getSurface()),
                         mCaptureSessionStateCallback, mBackgroundHandler);
             } catch (CameraAccessException e) {
@@ -95,7 +95,8 @@ public class TimeLapseCapture {
                 throw new RuntimeException("Can't access the camera", e);
             }
 
-            mVideo.start();   // Recording is now started
+            mCameraReadyCallback.onCameraReady();
+            startRecording();
         }
 
         @Override
@@ -117,13 +118,14 @@ public class TimeLapseCapture {
                                        @NonNull TotalCaptureResult result) { }
     };
 
-    public void open(Surface previewSurface) {
+    public void open(Surface previewSurface, CameraReadyCallback callback) {
         mPreviewSurface = previewSurface;
+        mCameraReadyCallback = callback;
 
         String rearCameraId = findRearCameraId();
         try {
             mCameraCharacteristics = mCameraManager.getCameraCharacteristics(rearCameraId);
-            mCameraManager.openCamera(rearCameraId, mCameraStateCallback, null);
+            mCameraManager.openCamera(rearCameraId, mCameraStateCallback, mBackgroundHandler);
         } catch (CameraAccessException e) {
             throw new RuntimeException("Unable to access the camera.", e);
         } catch (SecurityException e) {
@@ -142,10 +144,29 @@ public class TimeLapseCapture {
         }
 
         if (mVideo != null) {
-            mVideo.stop();
-            mVideo.release();
-            mVideo = null;
+            stopRecording(new VideoRecorderStopped() {
+                @Override
+                public void onVideoRecorderStopped() {
+                    mVideo.release();
+                    mVideo = null;
+                }
+            });
         }
+    }
+
+    public void startRecording() {
+        mVideo.start();
+    }
+
+    public void stopRecording(final VideoRecorderStopped callback) {
+        mBackgroundHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                mVideo.stop();
+                Log.d(TAG, "Video recorder stopped.");
+                callback.onVideoRecorderStopped();
+            }
+        });
     }
 
     private String findRearCameraId() {
@@ -203,5 +224,14 @@ public class TimeLapseCapture {
         } catch (IOException e) {
             throw new RuntimeException("Unable to prepare the video recorder.", e);
         }
+    }
+
+
+    public interface CameraReadyCallback {
+        void onCameraReady();
+    }
+
+    public interface VideoRecorderStopped {
+        void onVideoRecorderStopped();
     }
 }

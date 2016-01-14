@@ -61,8 +61,9 @@ public class TimeLapseCaptureService extends Service {
         }
     }
 
-    public void openCamera(Surface previewSurface) {
-        mCapture.open(previewSurface);
+    public void openCamera(final Surface previewSurface,
+                           final TimeLapseCapture.CameraReadyCallback callback) {
+        mCapture.open(previewSurface, callback);
     }
 
     public void closeCamera() {

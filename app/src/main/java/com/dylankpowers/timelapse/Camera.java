@@ -167,7 +167,12 @@ public class Camera extends Activity {
 
     private void openCameraL() {
         if (mCaptureService != null) {
-            mCaptureService.openCamera(new Surface(mPreviewView.getSurfaceTexture()));
+            mCaptureService.openCamera(new Surface(mPreviewView.getSurfaceTexture()), new TimeLapseCapture.CameraReadyCallback(){
+                @Override
+                public void onCameraReady() {
+                    Log.d(TAG, "Camera ready");
+                }
+            });
         } else {
             mOpenCameraWaitingOnServiceConnection = true;
         }
