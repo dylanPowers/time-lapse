@@ -96,7 +96,6 @@ public class TimeLapseCapture {
             }
 
             mCameraReadyCallback.onCameraReady();
-            startRecording();
         }
 
         @Override

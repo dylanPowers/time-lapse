@@ -69,4 +69,12 @@ public class TimeLapseCaptureService extends Service {
     public void closeCamera() {
         mCapture.close();
     }
+
+    public void startRecording() {
+        mCapture.startRecording();
+    }
+
+    public void stopRecording(TimeLapseCapture.VideoRecorderStopped callback) {
+        mCapture.stopRecording(callback);
+    }
 }

@@ -18,7 +18,6 @@ import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
-import android.view.View;
 
 
 public class Camera extends Activity {
@@ -64,8 +63,7 @@ public class Camera extends Activity {
         }
 
         @Override
-        public void onSurfaceTextureUpdated(SurfaceTexture texture) {
-        }
+        public void onSurfaceTextureUpdated(SurfaceTexture texture) { }
 
         private void setSurfaceTransform(int width, int height) {
             int rotation = getWindowManager().getDefaultDisplay().getRotation();
@@ -170,7 +168,7 @@ public class Camera extends Activity {
             mCaptureService.openCamera(new Surface(mPreviewView.getSurfaceTexture()), new TimeLapseCapture.CameraReadyCallback(){
                 @Override
                 public void onCameraReady() {
-                    Log.d(TAG, "Camera ready");
+                    mCaptureService.startRecording();
                 }
             });
         } else {
