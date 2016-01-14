@@ -145,16 +145,6 @@ public class Camera extends Activity {
         }
     }
 
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        if (hasFocus) {
-            mPreviewView.setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_FULLSCREEN);
-        }
-    }
-
     private void openCamera() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             openCameraM();
