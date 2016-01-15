@@ -18,15 +18,20 @@ import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
+import android.view.View;
+import android.widget.Button;
 
 
 public class Camera extends Activity {
     private static final String TAG = "TimeLapseActivity";
 
+    private boolean mCameraReady = false;
+    private Button mCaptureButton;
     private TimeLapseCaptureService mCaptureService;
     private boolean mCaptureServiceBound;
-    private TextureView mPreviewView;
     private boolean mOpenCameraWaitingOnServiceConnection = false;
+    private TextureView mPreviewView;
+    private boolean mRecording = false;
 
     private final ServiceConnection mCaptureServiceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder service) {
@@ -107,6 +112,23 @@ public class Camera extends Activity {
 
         setContentView(R.layout.activity_camera);
         mPreviewView = (TextureView) findViewById(R.id.camera_preview);
+        mCaptureButton = (Button) findViewById(R.id.capture_button);
+        mCaptureButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!mRecording) {
+                    mCaptureService.startRecording();
+                    mRecording = true;
+                } else {
+                    mCaptureService.stopRecording(new TimeLapseCapture.VideoRecorderStopped() {
+                        @Override
+                        public void onVideoRecorderStopped() {
+                            mRecording = false;
+                        }
+                    });
+                }
+            }
+        });
     }
 
     @Override
@@ -168,7 +190,7 @@ public class Camera extends Activity {
             mCaptureService.openCamera(new Surface(mPreviewView.getSurfaceTexture()), new TimeLapseCapture.CameraReadyCallback(){
                 @Override
                 public void onCameraReady() {
-                    mCaptureService.startRecording();
+                    mCameraReady = true;
                 }
             });
         } else {

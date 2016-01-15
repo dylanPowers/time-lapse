@@ -22,8 +22,8 @@
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Play/Pause"
-        android:id="@+id/play_pause_button"
+        android:text="Capture"
+        android:id="@+id/capture_button"
         android:layout_gravity="center_vertical|right"
         android:layout_marginRight="50dp"
         android:clickable="true"
