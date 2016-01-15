@@ -282,7 +282,7 @@ public class TimeLapseCapture {
             videoOrientation = (videoOrientation + 180) % 360;
         }
 
-        CamcorderProfile profile = CamcorderProfile.get(CamcorderProfile.QUALITY_1080P);
+        CamcorderProfile profile = CamcorderProfile.get(CamcorderProfile.QUALITY_2160P);
         mVideo.setOrientationHint(videoOrientation);
         mVideo.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
         double log2FrameRateRatio = Math.log10(VIDEO_FPS / profile.videoFrameRate) / Math.log10(2);
