@@ -31,7 +31,6 @@ public class Camera extends Activity {
     private boolean mCaptureServiceBound;
     private boolean mOpenCameraWaitingOnServiceConnection = false;
     private TextureView mPreviewView;
-    private boolean mRecording = false;
 
     private final ServiceConnection mCaptureServiceConnection = new ServiceConnection() {
         public void onServiceConnected(ComponentName className, IBinder service) {
@@ -116,14 +115,20 @@ public class Camera extends Activity {
         mCaptureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (!mRecording) {
-                    mCaptureService.startRecording();
-                    mRecording = true;
-                } else {
-                    mCaptureService.stopRecording(new TimeLapseCapture.VideoRecorderStopped() {
+                if (mCaptureService != null && mCameraReady) {
+                    mCaptureService.isRecording(new TimeLapseCapture.IsRecordingCallback() {
                         @Override
-                        public void onVideoRecorderStopped() {
-                            mRecording = false;
+                        public void onReply(boolean currentlyRecording) {
+                            if (currentlyRecording) {
+                                mCaptureService.stopRecording(new TimeLapseCapture.VideoRecorderStopped() {
+                                    @Override
+                                    public void onVideoRecorderStopped() {
+//                                        mRecording = false;
+                                    }
+                                });
+                            } else {
+                                mCaptureService.startRecording();
+                            }
                         }
                     });
                 }

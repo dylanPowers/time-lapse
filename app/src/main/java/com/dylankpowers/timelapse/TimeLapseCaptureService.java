@@ -70,6 +70,10 @@ public class TimeLapseCaptureService extends Service {
         mCapture.close();
     }
 
+    public void isRecording(TimeLapseCapture.IsRecordingCallback callback) {
+        mCapture.isRecording(callback);
+    }
+
     public void startRecording() {
         mCapture.startRecording();
     }

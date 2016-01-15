@@ -23,6 +23,7 @@ import java.util.Arrays;
 
 public class TimeLapseCapture {
     private static final String TAG = "TimeLapseCapture";
+    private static final int VIDEO_FPS = 60;
 
     private Handler mBackgroundHandler;
     private CameraDevice mCamera;
@@ -32,6 +33,7 @@ public class TimeLapseCapture {
     private CameraCaptureSession mCaptureSession;
     private Display mDefaultDisplay;
     private Surface mPreviewSurface;
+    private boolean mCurrentlyRecording = false;
     private MediaRecorder mVideo;
 
     public TimeLapseCapture(CameraManager cameraManager,
@@ -47,14 +49,10 @@ public class TimeLapseCapture {
         @Override
         public void onOpened(@NonNull CameraDevice camera) {
             mCamera = camera;
-            setupVideoRecorder();
-            try {
-                mCamera.createCaptureSession(
-                        Arrays.asList(mPreviewSurface, mVideo.getSurface()),
-                        mCaptureSessionStateCallback, mBackgroundHandler);
-            } catch (CameraAccessException e) {
-                throw new RuntimeException("Can't access the camera.", e);
-            }
+            mCameraReadyCallback.onCameraReady();
+            mCameraReadyCallback = null;
+
+            createPreviewCaptureSession();
         }
 
         @Override
@@ -67,40 +65,6 @@ public class TimeLapseCapture {
         public void onError(@NonNull CameraDevice camera, int error) {
             Log.d(TAG, "Camera Error: " + error);
             camera.close();
-        }
-    };
-
-
-    private final CameraCaptureSession.StateCallback
-            mCaptureSessionStateCallback = new CameraCaptureSession.StateCallback() {
-        @Override
-        public void onConfigured(@NonNull CameraCaptureSession session) {
-            Log.d(TAG, "configured");
-            mCaptureSession = session;
-            CaptureRequest.Builder previewRequestBuilder;
-            try {
-                previewRequestBuilder = mCamera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
-            } catch (CameraAccessException e) {
-                e.printStackTrace();
-                return;
-            }
-
-            previewRequestBuilder.addTarget(mPreviewSurface);
-            previewRequestBuilder.addTarget(mVideo.getSurface());
-            try {
-                session.setRepeatingRequest(
-                        previewRequestBuilder.build(),
-                        mCaptureCallback, mBackgroundHandler);
-            } catch (CameraAccessException e) {
-                throw new RuntimeException("Can't access the camera", e);
-            }
-
-            mCameraReadyCallback.onCameraReady();
-        }
-
-        @Override
-        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-            Log.d(TAG, "Camera capture session configure failed.");
         }
     };
 
@@ -117,23 +81,22 @@ public class TimeLapseCapture {
                                        @NonNull TotalCaptureResult result) { }
     };
 
-    public void open(Surface previewSurface, CameraReadyCallback callback) {
-        mPreviewSurface = previewSurface;
-        mCameraReadyCallback = callback;
-
-        String rearCameraId = findRearCameraId();
-        try {
-            mCameraCharacteristics = mCameraManager.getCameraCharacteristics(rearCameraId);
-            mCameraManager.openCamera(rearCameraId, mCameraStateCallback, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            throw new RuntimeException("Unable to access the camera.", e);
-        } catch (SecurityException e) {
-            throw new RuntimeException("Security exception opening the camera. " +
-                    "This shouldn't have happened!", e);
-        }
-    }
-
     public void close() {
+        if (mVideo != null) {
+            mBackgroundHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (mCurrentlyRecording) {
+                        mVideo.stop();
+                        mCurrentlyRecording = false;
+                    }
+
+                    mVideo.release();
+                    mVideo = null;
+                }
+            });
+        }
+
         if (mCaptureSession != null) {
             mCaptureSession.close();
         }
@@ -141,31 +104,53 @@ public class TimeLapseCapture {
         if (mCamera != null) {
             mCamera.close();
         }
+    }
 
-        if (mVideo != null) {
-            stopRecording(new VideoRecorderStopped() {
+    private void createRecordingCaptureSession() {
+        if (mCaptureSession != null) {
+            mCaptureSession.close();
+        }
+        setupVideoRecorder();
+        try {
+            mCamera.createCaptureSession(
+                    Arrays.asList(mPreviewSurface, mVideo.getSurface()),
+                    new CameraCaptureSession.StateCallback() {
                 @Override
-                public void onVideoRecorderStopped() {
-                    mVideo.release();
-                    mVideo = null;
+                public void onConfigured(@NonNull CameraCaptureSession session) {
+                    onCaptureSessionConfigured(session, CameraDevice.TEMPLATE_RECORD);
                 }
-            });
+
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                    Log.d(TAG, "Camera capture session configure failed.");
+                }
+            }, mBackgroundHandler);
+        } catch (CameraAccessException e) {
+            throw new RuntimeException("Can't access the camera.", e);
         }
     }
 
-    public void startRecording() {
-        mVideo.start();
-    }
+    private void createPreviewCaptureSession() {
+        if (mCaptureSession != null) {
+            mCaptureSession.close();
+        }
+        try {
+            mCamera.createCaptureSession(
+                    Arrays.asList(mPreviewSurface),
+                    new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(@NonNull CameraCaptureSession session) {
+                    onCaptureSessionConfigured(session, CameraDevice.TEMPLATE_PREVIEW);
+                }
 
-    public void stopRecording(final VideoRecorderStopped callback) {
-        mBackgroundHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                mVideo.stop();
-                Log.d(TAG, "Video recorder stopped.");
-                callback.onVideoRecorderStopped();
-            }
-        });
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                    Log.d(TAG, "Camera capture session configure failed.");
+                }
+            }, mBackgroundHandler);
+        } catch (CameraAccessException e) {
+            throw new RuntimeException("Can't access the camera.", e);
+        }
     }
 
     private String findRearCameraId() {
@@ -193,7 +178,83 @@ public class TimeLapseCapture {
         throw new RuntimeException("The rear camera was not found");
     }
 
-    private static final int VIDEO_FPS = 60;
+    public void isRecording(final IsRecordingCallback callback) {
+        // Run on the background thread or else concurrency issues could result
+        mBackgroundHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                callback.onReply(mCurrentlyRecording);
+            }
+        });
+    }
+
+    private void onCaptureSessionConfigured(CameraCaptureSession session, int sessionTemplateType) {
+        Log.d(TAG, "configured");
+        mCaptureSession = session;
+        CaptureRequest.Builder previewRequestBuilder;
+        try {
+            previewRequestBuilder = mCamera.createCaptureRequest(sessionTemplateType);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        previewRequestBuilder.addTarget(mPreviewSurface);
+        if (sessionTemplateType == CameraDevice.TEMPLATE_RECORD) {
+            previewRequestBuilder.addTarget(mVideo.getSurface());
+        }
+
+        try {
+            session.setRepeatingRequest(
+                    previewRequestBuilder.build(),
+                    mCaptureCallback, mBackgroundHandler);
+        } catch (CameraAccessException e) {
+            throw new RuntimeException("Can't access the camera", e);
+        }
+    }
+
+    public void open(Surface previewSurface, CameraReadyCallback callback) {
+        mPreviewSurface = previewSurface;
+        mCameraReadyCallback = callback;
+
+        String rearCameraId = findRearCameraId();
+        try {
+            mCameraCharacteristics = mCameraManager.getCameraCharacteristics(rearCameraId);
+            mCameraManager.openCamera(rearCameraId, mCameraStateCallback, mBackgroundHandler);
+        } catch (CameraAccessException e) {
+            throw new RuntimeException("Unable to access the camera.", e);
+        } catch (SecurityException e) {
+            throw new RuntimeException("Security exception opening the camera. " +
+                    "This shouldn't have happened!", e);
+        }
+    }
+
+    public void startRecording() {
+        mBackgroundHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                mCurrentlyRecording = true;
+                createRecordingCaptureSession();
+                mVideo.start();
+                Log.d(TAG, "Video recorder started.");
+            }
+        });
+    }
+
+    public void stopRecording(final VideoRecorderStopped callback) {
+//        mVideoRecorderStoppedCallback = callback;
+        mBackgroundHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                mCurrentlyRecording = false;
+                mVideo.stop();
+                createPreviewCaptureSession();
+                Log.d(TAG, "Video recorder stopped.");
+                callback.onVideoRecorderStopped();
+            }
+        });
+    }
+
     private void setupVideoRecorder() {
         mVideo = new MediaRecorder();
         mVideo.setVideoSource(MediaRecorder.VideoSource.SURFACE);
@@ -228,6 +289,10 @@ public class TimeLapseCapture {
 
     public interface CameraReadyCallback {
         void onCameraReady();
+    }
+
+    public interface IsRecordingCallback {
+        void onReply(boolean currentlyRecording);
     }
 
     public interface VideoRecorderStopped {
