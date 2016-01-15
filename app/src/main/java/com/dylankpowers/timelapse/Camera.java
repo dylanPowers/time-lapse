@@ -77,7 +77,7 @@ public class Camera extends Activity {
             RectF viewRect = new RectF(0, 0, width, height);
             float centerX = viewRect.centerX();
             float centerY = viewRect.centerY();
-            if (Surface.ROTATION_90 == rotation || Surface.ROTATION_270 == rotation) {
+            if (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) {
                 matrix.postRotate(90 * (rotation - 2), centerX, centerY);
                 matrix.postScale(
                         width / (float) height,
