@@ -62,7 +62,7 @@ public class TimeLapseCaptureService extends Service {
     }
 
     public void openCamera(final Surface previewSurface,
-                           final TimeLapseCapture.CameraReadyCallback callback) {
+                           final TimeLapseCapture.SimpleCallback callback) {
         mCapture.open(previewSurface, callback);
     }
 
@@ -74,11 +74,11 @@ public class TimeLapseCaptureService extends Service {
         mCapture.isRecording(callback);
     }
 
-    public void startRecording() {
-        mCapture.startRecording();
+    public void startRecording(TimeLapseCapture.SimpleCallback callback) {
+        mCapture.startRecording(callback);
     }
 
-    public void stopRecording(TimeLapseCapture.VideoRecorderStopped callback) {
+    public void stopRecording(TimeLapseCapture.SimpleCallback callback) {
         mCapture.stopRecording(callback);
     }
 }

@@ -29,12 +29,14 @@ public class TimeLapseCapture {
     private CameraDevice mCamera;
     private CameraManager mCameraManager;
     private CameraCharacteristics mCameraCharacteristics;
-    private CameraReadyCallback mCameraReadyCallback;
+    private SimpleCallback mCameraReadyCallback;
     private CameraCaptureSession mCaptureSession;
+    private boolean mCurrentlyRecording = false;
     private Display mDefaultDisplay;
     private Surface mPreviewSurface;
-    private boolean mCurrentlyRecording = false;
     private MediaRecorder mVideo;
+    private SimpleCallback mVideoRecorderStarted;
+    private SimpleCallback mVideoRecorderStopped;
 
     public TimeLapseCapture(CameraManager cameraManager,
                             Handler backgroundHandler,
@@ -49,7 +51,7 @@ public class TimeLapseCapture {
         @Override
         public void onOpened(@NonNull CameraDevice camera) {
             mCamera = camera;
-            mCameraReadyCallback.onCameraReady();
+            mCameraReadyCallback.onEvent();
             mCameraReadyCallback = null;
 
             createPreviewCaptureSession();
@@ -118,6 +120,12 @@ public class TimeLapseCapture {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession session) {
                     onCaptureSessionConfigured(session, CameraDevice.TEMPLATE_RECORD);
+
+                    mVideo.start();
+                    mCurrentlyRecording = true;
+                    Log.d(TAG, "Video recorder started.");
+                    mVideoRecorderStarted.onEvent();
+                    mVideoRecorderStarted = null;
                 }
 
                 @Override
@@ -141,6 +149,13 @@ public class TimeLapseCapture {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession session) {
                     onCaptureSessionConfigured(session, CameraDevice.TEMPLATE_PREVIEW);
+
+                    if (mVideoRecorderStopped != null) {
+                        mCurrentlyRecording = false;
+                        Log.d(TAG, "Video recorder stopped.");
+                        mVideoRecorderStopped.onEvent();
+                        mVideoRecorderStopped = null;
+                    }
                 }
 
                 @Override
@@ -213,7 +228,7 @@ public class TimeLapseCapture {
         }
     }
 
-    public void open(Surface previewSurface, CameraReadyCallback callback) {
+    public void open(Surface previewSurface, SimpleCallback callback) {
         mPreviewSurface = previewSurface;
         mCameraReadyCallback = callback;
 
@@ -229,28 +244,28 @@ public class TimeLapseCapture {
         }
     }
 
-    public void startRecording() {
+    public void startRecording(SimpleCallback callback) {
+        mVideoRecorderStarted = callback;
         mBackgroundHandler.post(new Runnable() {
             @Override
             public void run() {
-                mCurrentlyRecording = true;
                 createRecordingCaptureSession();
-                mVideo.start();
-                Log.d(TAG, "Video recorder started.");
             }
         });
     }
 
-    public void stopRecording(final VideoRecorderStopped callback) {
-//        mVideoRecorderStoppedCallback = callback;
+    public void stopRecording(SimpleCallback callback) {
+        mVideoRecorderStopped = callback;
         mBackgroundHandler.post(new Runnable() {
             @Override
             public void run() {
-                mCurrentlyRecording = false;
-                mVideo.stop();
+                try {
+                    mVideo.stop();
+                } catch (RuntimeException e) {
+                    Log.d(TAG, "Nothing was recorded");
+                }
+
                 createPreviewCaptureSession();
-                Log.d(TAG, "Video recorder stopped.");
-                callback.onVideoRecorderStopped();
             }
         });
     }
@@ -286,16 +301,11 @@ public class TimeLapseCapture {
         }
     }
 
-
-    public interface CameraReadyCallback {
-        void onCameraReady();
+    public interface SimpleCallback {
+        void onEvent();
     }
 
     public interface IsRecordingCallback {
         void onReply(boolean currentlyRecording);
-    }
-
-    public interface VideoRecorderStopped {
-        void onVideoRecorderStopped();
     }
 }

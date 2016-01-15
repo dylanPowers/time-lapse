@@ -30,6 +30,8 @@ public class Camera extends Activity {
     private TimeLapseCaptureService mCaptureService;
     private boolean mCaptureServiceBound;
     private boolean mOpenCameraWaitingOnServiceConnection = false;
+    private boolean mPendingRecordingStop = false;
+    private boolean mPendingRecordingStart = false;
     private TextureView mPreviewView;
 
     private final ServiceConnection mCaptureServiceConnection = new ServiceConnection() {
@@ -115,23 +117,7 @@ public class Camera extends Activity {
         mCaptureButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (mCaptureService != null && mCameraReady) {
-                    mCaptureService.isRecording(new TimeLapseCapture.IsRecordingCallback() {
-                        @Override
-                        public void onReply(boolean currentlyRecording) {
-                            if (currentlyRecording) {
-                                mCaptureService.stopRecording(new TimeLapseCapture.VideoRecorderStopped() {
-                                    @Override
-                                    public void onVideoRecorderStopped() {
-//                                        mRecording = false;
-                                    }
-                                });
-                            } else {
-                                mCaptureService.startRecording();
-                            }
-                        }
-                    });
-                }
+                recordButtonClicked();
             }
         });
     }
@@ -192,9 +178,9 @@ public class Camera extends Activity {
 
     private void openCameraL() {
         if (mCaptureService != null) {
-            mCaptureService.openCamera(new Surface(mPreviewView.getSurfaceTexture()), new TimeLapseCapture.CameraReadyCallback(){
+            mCaptureService.openCamera(new Surface(mPreviewView.getSurfaceTexture()), new TimeLapseCapture.SimpleCallback(){
                 @Override
-                public void onCameraReady() {
+                public void onEvent() {
                     mCameraReady = true;
                 }
             });
@@ -206,6 +192,45 @@ public class Camera extends Activity {
     private void closeCamera() {
         if (mCaptureService != null) {
             mCaptureService.closeCamera();
+        }
+    }
+
+    TimeLapseCapture.IsRecordingCallback isRecordingCallback = new TimeLapseCapture.IsRecordingCallback() {
+        @Override
+        public void onReply(boolean currentlyRecording) {
+            if (currentlyRecording && !mPendingRecordingStop) {
+                mPendingRecordingStop = true;
+                if (!mPendingRecordingStart) {
+                    mCaptureService.stopRecording(new TimeLapseCapture.SimpleCallback() {
+                        @Override
+                        public void onEvent() {
+                            mPendingRecordingStop = false;
+                            if (mPendingRecordingStart) {
+                                mCaptureService.isRecording(isRecordingCallback);
+                            }
+                        }
+                    });
+                }
+            } else if (!currentlyRecording && !mPendingRecordingStart){
+                mPendingRecordingStart = true;
+                if (!mPendingRecordingStop) {
+                    mCaptureService.startRecording(new TimeLapseCapture.SimpleCallback() {
+                        @Override
+                        public void onEvent() {
+                            mPendingRecordingStart = false;
+                            if (mPendingRecordingStop) {
+                                mCaptureService.isRecording(isRecordingCallback);
+                            }
+                        }
+                    });
+                }
+            }
+        }
+    };
+
+    private void recordButtonClicked() {
+        if (mCaptureService != null && mCameraReady) {
+            mCaptureService.isRecording(isRecordingCallback);
         }
     }
 }
