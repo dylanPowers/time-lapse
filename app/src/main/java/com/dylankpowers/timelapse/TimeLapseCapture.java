@@ -1,5 +1,9 @@
 package com.dylankpowers.timelapse;
 
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -11,13 +15,19 @@ import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
+import android.net.Uri;
 import android.os.Environment;
 import android.os.Handler;
+import android.provider.MediaStore;
+import android.support.annotation.InterpolatorRes;
 import android.support.annotation.NonNull;
+import android.support.v4.content.FileProvider;
 import android.util.Log;
 import android.view.Display;
 import android.view.Surface;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
 
@@ -31,6 +41,8 @@ public class TimeLapseCapture {
     private CameraCharacteristics mCameraCharacteristics;
     private SimpleCallback mCameraReadyCallback;
     private CameraCaptureSession mCaptureSession;
+    private ContentResolver mContentResolver;
+    private Context mContext;
     private boolean mCurrentlyRecording = false;
     private Display mDefaultDisplay;
     private Surface mPreviewSurface;
@@ -40,10 +52,13 @@ public class TimeLapseCapture {
 
     public TimeLapseCapture(CameraManager cameraManager,
                             Handler backgroundHandler,
-                            Display defaultDisplay) {
+                            Display defaultDisplay, ContentResolver contentResolver,
+                            Context ctx) {
         mCameraManager = cameraManager;
         mBackgroundHandler = backgroundHandler;
         mDefaultDisplay = defaultDisplay;
+        mContentResolver = contentResolver;
+        mContext = ctx;
     }
 
     private final CameraDevice.StateCallback
@@ -299,6 +314,33 @@ public class TimeLapseCapture {
         } catch (IOException e) {
             throw new RuntimeException("Unable to prepare the video recorder.", e);
         }
+
+//        MediaMetadata.
+        ContentValues values = new ContentValues(5);
+        values.put(MediaStore.MediaColumns.HEIGHT, profile.videoFrameHeight);
+        values.put(MediaStore.MediaColumns.WIDTH, profile.videoFrameWidth);
+        values.put(MediaStore.Video.Media.RESOLUTION,
+                profile.videoFrameWidth + "x" + profile.videoFrameHeight);
+        values.put(MediaStore.MediaColumns.DATA, filePath);
+        values.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+//        MediaMe
+//        Uri filePathUri = FileProvider.getUriForFile(mContext, "com.dylankpowers.timelapse", new File(filePath));
+//        Uri filePathUri = Uri.parse("content://com.dylankpowers.timelapse" + filePath);
+//        Log.d(TAG, "File path uri: " + filePathUri);
+
+//        Uri mediaTable = Uri.parse("content://media/external/video/media");
+        Uri mediaTable = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+        Log.d(TAG, "mediaTable: " + mediaTable.toString());
+        String query =  MediaStore.MediaColumns.DATA + " = '" + filePath + "'";
+        Log.d(TAG, "Rows updated: " + mContentResolver.update(mediaTable, values, query, null));
+        Cursor result = mContentResolver.query(mediaTable, new String[] { "_id" }, query, null, null);
+        result.moveToFirst();
+        String id = result.getString(0);
+
+        Uri contentUri = mediaTable.buildUpon().appendPath(id).build(); //mContentResolver.insert(mediaTable, values);
+        Log.d(TAG, "contentUri: " + contentUri.toString());
+        mContentResolver.update(contentUri, values, null, null);
+
     }
 
     public interface SimpleCallback {

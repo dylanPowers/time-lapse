@@ -46,7 +46,7 @@ public class TimeLapseCaptureService extends Service {
         mBackgroundThread = new HandlerThread("TimeLapseCaptureBackground");
         mBackgroundThread.start();
         Handler backgroundHandler = new Handler(mBackgroundThread.getLooper());
-        mCapture = new TimeLapseCapture(cMan, backgroundHandler, defaultDisplay);
+        mCapture = new TimeLapseCapture(cMan, backgroundHandler, defaultDisplay, getContentResolver(), this);
     }
 
     @Override
