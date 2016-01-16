@@ -27,6 +27,8 @@ import android.view.Surface;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
 
 public class TimeLapseCapture {
     private static final String TAG = "TimeLapseCapture";
@@ -210,6 +212,20 @@ public class TimeLapseCapture {
         throw new RuntimeException("The rear camera was not found");
     }
 
+    private static String generateFilename() {
+        String filename = "TimeLapse_";
+        Calendar date = new GregorianCalendar();
+        filename += date.get(Calendar.YEAR);
+        filename += String.format("%02d", date.get(Calendar.MONTH) + 1);
+        filename += String.format("%02d", date.get(Calendar.DAY_OF_MONTH));
+        filename += "_";
+        filename += String.format("%02d", date.get(Calendar.HOUR_OF_DAY));
+        filename += String.format("%02d", date.get(Calendar.MINUTE));
+        filename += String.format("%02d", date.get(Calendar.SECOND));
+        filename += ".mp4";
+        return filename;
+    }
+
     public void isRecording(final IsRecordingCallback callback) {
         // Run on the background thread or else concurrency issues could result
         mBackgroundHandler.post(new Runnable() {
@@ -334,7 +350,7 @@ public class TimeLapseCapture {
         mVideo.setVideoFrameRate(VIDEO_FPS);
         mVideo.setVideoSize(mRecordingSessionProfile.videoFrameWidth, mRecordingSessionProfile.videoFrameHeight);
 
-        mRecordingSessionFilepath = STORAGE_DIR + "/time-lapse.mp4";
+        mRecordingSessionFilepath = STORAGE_DIR + "/" + generateFilename();
         File storageDir = new File(STORAGE_DIR);
         if (!storageDir.exists()) {
             storageDir.mkdir();
