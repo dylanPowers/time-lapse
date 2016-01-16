@@ -19,20 +19,20 @@ import android.net.Uri;
 import android.os.Environment;
 import android.os.Handler;
 import android.provider.MediaStore;
-import android.support.annotation.InterpolatorRes;
 import android.support.annotation.NonNull;
-import android.support.v4.content.FileProvider;
 import android.util.Log;
 import android.view.Display;
 import android.view.Surface;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Arrays;
 
 public class TimeLapseCapture {
     private static final String TAG = "TimeLapseCapture";
+    private static final String STORAGE_DIR =
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
+                .getAbsolutePath() + "/TimeLapse";
     private static final int VIDEO_FPS = 60;
 
     private Handler mBackgroundHandler;
@@ -46,6 +46,8 @@ public class TimeLapseCapture {
     private boolean mCurrentlyRecording = false;
     private Display mDefaultDisplay;
     private Surface mPreviewSurface;
+    private String mRecordingSessionFilepath;
+    private CamcorderProfile mRecordingSessionProfile;
     private MediaRecorder mVideo;
     private SimpleCallback mVideoRecorderStarted;
     private SimpleCallback mVideoRecorderStopped;
@@ -104,7 +106,7 @@ public class TimeLapseCapture {
                 @Override
                 public void run() {
                     if (mCurrentlyRecording) {
-                        mVideo.stop();
+                        stopRecordingSync();
                         mCurrentlyRecording = false;
                     }
 
@@ -275,7 +277,7 @@ public class TimeLapseCapture {
             @Override
             public void run() {
                 try {
-                    mVideo.stop();
+                    stopRecordingSync();
                 } catch (RuntimeException e) {
                     Log.d(TAG, "Nothing was recorded");
                 }
@@ -283,6 +285,32 @@ public class TimeLapseCapture {
                 createPreviewCaptureSession();
             }
         });
+    }
+
+    private void stopRecordingSync() {
+        mVideo.stop();
+        ContentValues values = new ContentValues(5);
+        values.put(MediaStore.MediaColumns.HEIGHT, mRecordingSessionProfile.videoFrameHeight);
+        values.put(MediaStore.MediaColumns.WIDTH, mRecordingSessionProfile.videoFrameWidth);
+        values.put(MediaStore.Video.Media.RESOLUTION,
+                mRecordingSessionProfile.videoFrameWidth + "x" + mRecordingSessionProfile.videoFrameHeight);
+        values.put(MediaStore.MediaColumns.DATA, mRecordingSessionFilepath);
+        values.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+
+        Uri mediaTable = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+        Uri contentUri = mContentResolver.insert(mediaTable, values);
+        if (contentUri == null) {
+            String query = MediaStore.MediaColumns.DATA + " = '" + mRecordingSessionFilepath + "'";
+            mContentResolver.update(mediaTable, values, query, null);
+            Cursor result = mContentResolver.query(mediaTable, new String[]{"_id"}, query, null, null);
+            result.moveToFirst();
+            String id = result.getString(0);
+            result.close();
+
+            contentUri = mediaTable.buildUpon().appendPath(id).build();
+        }
+
+        mContentResolver.update(contentUri, values, null, null);
     }
 
     private void setupVideoRecorder() {
@@ -297,50 +325,30 @@ public class TimeLapseCapture {
             videoOrientation = (videoOrientation + 180) % 360;
         }
 
-        CamcorderProfile profile = CamcorderProfile.get(CamcorderProfile.QUALITY_1080P);
+        mRecordingSessionProfile = CamcorderProfile.get(CamcorderProfile.QUALITY_2160P);
         mVideo.setOrientationHint(videoOrientation);
         mVideo.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-        double log2FrameRateRatio = Math.log10(VIDEO_FPS / profile.videoFrameRate) / Math.log10(2);
+        double log2FrameRateRatio = Math.log10(VIDEO_FPS / mRecordingSessionProfile.videoFrameRate) / Math.log10(2);
         double bitrateChangeRatio = Math.pow(1.5, log2FrameRateRatio);
-        mVideo.setVideoEncodingBitRate((int) (profile.videoBitRate * bitrateChangeRatio));
+        mVideo.setVideoEncodingBitRate((int) (mRecordingSessionProfile.videoBitRate * bitrateChangeRatio));
         mVideo.setVideoFrameRate(VIDEO_FPS);
-        mVideo.setVideoSize(profile.videoFrameWidth, profile.videoFrameHeight);
-        String path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
-                .getAbsolutePath();
-        String filePath = path + "/time-lapse.mp4";
-        mVideo.setOutputFile(filePath);
+        mVideo.setVideoSize(mRecordingSessionProfile.videoFrameWidth, mRecordingSessionProfile.videoFrameHeight);
+
+        mRecordingSessionFilepath = STORAGE_DIR + "/time-lapse.mp4";
+        File storageDir = new File(STORAGE_DIR);
+        if (!storageDir.exists()) {
+            storageDir.mkdir();
+        } else if (storageDir.isFile()) {
+            storageDir.delete();
+            storageDir.mkdir();
+        }
+
+        mVideo.setOutputFile(mRecordingSessionFilepath);
         try {
             mVideo.prepare();
         } catch (IOException e) {
             throw new RuntimeException("Unable to prepare the video recorder.", e);
         }
-
-//        MediaMetadata.
-        ContentValues values = new ContentValues(5);
-        values.put(MediaStore.MediaColumns.HEIGHT, profile.videoFrameHeight);
-        values.put(MediaStore.MediaColumns.WIDTH, profile.videoFrameWidth);
-        values.put(MediaStore.Video.Media.RESOLUTION,
-                profile.videoFrameWidth + "x" + profile.videoFrameHeight);
-        values.put(MediaStore.MediaColumns.DATA, filePath);
-        values.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
-//        MediaMe
-//        Uri filePathUri = FileProvider.getUriForFile(mContext, "com.dylankpowers.timelapse", new File(filePath));
-//        Uri filePathUri = Uri.parse("content://com.dylankpowers.timelapse" + filePath);
-//        Log.d(TAG, "File path uri: " + filePathUri);
-
-//        Uri mediaTable = Uri.parse("content://media/external/video/media");
-        Uri mediaTable = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
-        Log.d(TAG, "mediaTable: " + mediaTable.toString());
-        String query =  MediaStore.MediaColumns.DATA + " = '" + filePath + "'";
-        Log.d(TAG, "Rows updated: " + mContentResolver.update(mediaTable, values, query, null));
-        Cursor result = mContentResolver.query(mediaTable, new String[] { "_id" }, query, null, null);
-        result.moveToFirst();
-        String id = result.getString(0);
-
-        Uri contentUri = mediaTable.buildUpon().appendPath(id).build(); //mContentResolver.insert(mediaTable, values);
-        Log.d(TAG, "contentUri: " + contentUri.toString());
-        mContentResolver.update(contentUri, values, null, null);
-
     }
 
     public interface SimpleCallback {
