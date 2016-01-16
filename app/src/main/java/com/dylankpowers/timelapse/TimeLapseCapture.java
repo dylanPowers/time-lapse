@@ -44,7 +44,6 @@ public class TimeLapseCapture {
     private SimpleCallback mCameraReadyCallback;
     private CameraCaptureSession mCaptureSession;
     private ContentResolver mContentResolver;
-    private Context mContext;
     private boolean mCurrentlyRecording = false;
     private Display mDefaultDisplay;
     private Surface mPreviewSurface;
@@ -56,13 +55,11 @@ public class TimeLapseCapture {
 
     public TimeLapseCapture(CameraManager cameraManager,
                             Handler backgroundHandler,
-                            Display defaultDisplay, ContentResolver contentResolver,
-                            Context ctx) {
+                            Display defaultDisplay, ContentResolver contentResolver) {
         mCameraManager = cameraManager;
         mBackgroundHandler = backgroundHandler;
         mDefaultDisplay = defaultDisplay;
         mContentResolver = contentResolver;
-        mContext = ctx;
     }
 
     private final CameraDevice.StateCallback
@@ -102,7 +99,7 @@ public class TimeLapseCapture {
                                        @NonNull TotalCaptureResult result) { }
     };
 
-    public void close() {
+    public synchronized void close() {
         if (mVideo != null) {
             mBackgroundHandler.post(new Runnable() {
                 @Override
@@ -120,70 +117,70 @@ public class TimeLapseCapture {
 
         if (mCaptureSession != null) {
             mCaptureSession.close();
+            mCaptureSession = null;
+        }
+
+        mCamera.close();
+        mCamera = null;
+    }
+
+    private synchronized void createRecordingCaptureSession() {
+        if (mCaptureSession != null) {
+            mCaptureSession.close();
         }
 
         if (mCamera != null) {
-            mCamera.close();
+            setupVideoRecorder();
+            try {
+                mCamera.createCaptureSession(
+                        Arrays.asList(mPreviewSurface, mVideo.getSurface()),
+                        new CameraCaptureSession.StateCallback() {
+                            @Override
+                            public void onConfigured(@NonNull CameraCaptureSession session) {
+                                onCaptureSessionConfigured(session, CameraDevice.TEMPLATE_RECORD);
+
+                                mVideo.start();
+                                mCurrentlyRecording = true;
+                                Log.d(TAG, "Video recorder started.");
+                                mVideoRecorderStarted.onEvent();
+                                mVideoRecorderStarted = null;
+                            }
+
+                            @Override
+                            public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                                Log.d(TAG, "Camera capture session configure failed.");
+                            }
+                        }, mBackgroundHandler);
+            } catch (CameraAccessException e) {
+                throw new RuntimeException("Can't access the camera.", e);
+            }
         }
     }
 
-    private void createRecordingCaptureSession() {
+    private synchronized void createPreviewCaptureSession() {
         if (mCaptureSession != null) {
             mCaptureSession.close();
+            mCaptureSession = null;
         }
-        setupVideoRecorder();
-        try {
-            mCamera.createCaptureSession(
-                    Arrays.asList(mPreviewSurface, mVideo.getSurface()),
-                    new CameraCaptureSession.StateCallback() {
-                @Override
-                public void onConfigured(@NonNull CameraCaptureSession session) {
-                    onCaptureSessionConfigured(session, CameraDevice.TEMPLATE_RECORD);
 
-                    mVideo.start();
-                    mCurrentlyRecording = true;
-                    Log.d(TAG, "Video recorder started.");
-                    mVideoRecorderStarted.onEvent();
-                    mVideoRecorderStarted = null;
-                }
+        if (mCamera != null) {
+            try {
+                mCamera.createCaptureSession(
+                        Arrays.asList(mPreviewSurface),
+                        new CameraCaptureSession.StateCallback() {
+                            @Override
+                            public void onConfigured(@NonNull CameraCaptureSession session) {
+                                onCaptureSessionConfigured(session, CameraDevice.TEMPLATE_PREVIEW);
+                            }
 
-                @Override
-                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                    Log.d(TAG, "Camera capture session configure failed.");
-                }
-            }, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            throw new RuntimeException("Can't access the camera.", e);
-        }
-    }
-
-    private void createPreviewCaptureSession() {
-        if (mCaptureSession != null) {
-            mCaptureSession.close();
-        }
-        try {
-            mCamera.createCaptureSession(
-                    Arrays.asList(mPreviewSurface),
-                    new CameraCaptureSession.StateCallback() {
-                @Override
-                public void onConfigured(@NonNull CameraCaptureSession session) {
-                    onCaptureSessionConfigured(session, CameraDevice.TEMPLATE_PREVIEW);
-
-                    if (mVideoRecorderStopped != null) {
-                        mCurrentlyRecording = false;
-                        Log.d(TAG, "Video recorder stopped.");
-                        mVideoRecorderStopped.onEvent();
-                        mVideoRecorderStopped = null;
-                    }
-                }
-
-                @Override
-                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                    Log.d(TAG, "Camera capture session configure failed.");
-                }
-            }, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            throw new RuntimeException("Can't access the camera.", e);
+                            @Override
+                            public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                                Log.d(TAG, "Camera capture session configure failed.");
+                            }
+                        }, mBackgroundHandler);
+            } catch (CameraAccessException e) {
+                throw new RuntimeException("Can't access the camera.", e);
+            }
         }
     }
 
@@ -236,7 +233,8 @@ public class TimeLapseCapture {
         });
     }
 
-    private void onCaptureSessionConfigured(CameraCaptureSession session, int sessionTemplateType) {
+    private synchronized void onCaptureSessionConfigured(
+            CameraCaptureSession session, int sessionTemplateType) {
         Log.d(TAG, "configured");
         mCaptureSession = session;
         CaptureRequest.Builder previewRequestBuilder;
@@ -256,6 +254,7 @@ public class TimeLapseCapture {
             session.setRepeatingRequest(
                     previewRequestBuilder.build(),
                     mCaptureCallback, mBackgroundHandler);
+            Log.d(TAG, "Set repeating request");
         } catch (CameraAccessException e) {
             throw new RuntimeException("Can't access the camera", e);
         }
@@ -294,6 +293,10 @@ public class TimeLapseCapture {
             public void run() {
                 try {
                     stopRecordingSync();
+                    mCurrentlyRecording = false;
+                    Log.d(TAG, "Video recorder stopped.");
+                    mVideoRecorderStopped.onEvent();
+                    mVideoRecorderStopped = null;
                 } catch (RuntimeException e) {
                     Log.d(TAG, "Nothing was recorded");
                 }
@@ -341,7 +344,7 @@ public class TimeLapseCapture {
             videoOrientation = (videoOrientation + 180) % 360;
         }
 
-        mRecordingSessionProfile = CamcorderProfile.get(CamcorderProfile.QUALITY_2160P);
+        mRecordingSessionProfile = CamcorderProfile.get(CamcorderProfile.QUALITY_1080P);
         mVideo.setOrientationHint(videoOrientation);
         mVideo.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
         double log2FrameRateRatio = Math.log10(VIDEO_FPS / mRecordingSessionProfile.videoFrameRate) / Math.log10(2);
