@@ -135,10 +135,19 @@ public class Camera extends Activity implements TextureView.SurfaceTextureListen
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        int rotation = getWindowManager().getDefaultDisplay().getRotation();
+        final int rotation = getWindowManager().getDefaultDisplay().getRotation();
         if (rotation != mPreviousRotation) {
-            setSurfaceTransform(mPreviewView.getWidth(), mPreviewView.getHeight());
-            mPreviousRotation = rotation;
+            if (mCaptureService != null) {
+                mCaptureService.isRecording(new TimeLapseCapture.IsRecordingCallback() {
+                    @Override
+                    public void onReply(boolean currentlyRecording) {
+                        if (!currentlyRecording) {
+                            setSurfaceTransform(mPreviewView.getWidth(), mPreviewView.getHeight());
+                            mPreviousRotation = rotation;
+                        }
+                    }
+                });
+            }
         }
     }
 
