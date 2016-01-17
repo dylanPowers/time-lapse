@@ -33,6 +33,7 @@ public class Camera extends Activity implements TextureView.SurfaceTextureListen
     private Button mCaptureButton;
     private TimeLapseCaptureService mCaptureService;
     private boolean mCaptureServiceBound;
+    private boolean mCurrentlyRecording = false;
     private boolean mOpenCameraWaitingOnServiceConnection = false;
     private boolean mPendingRecordingStop = false;
     private boolean mPendingRecordingStart = false;
@@ -50,39 +51,6 @@ public class Camera extends Activity implements TextureView.SurfaceTextureListen
 
         public void onServiceDisconnected(ComponentName className) {
             mCaptureService = null;
-        }
-    };
-
-    TimeLapseCapture.IsRecordingCallback isRecordingCallback = new TimeLapseCapture.IsRecordingCallback() {
-        @Override
-        public void onReply(boolean currentlyRecording) {
-            if (currentlyRecording && !mPendingRecordingStop) {
-                mPendingRecordingStop = true;
-                if (!mPendingRecordingStart) {
-                    mCaptureService.stopRecording(new TimeLapseCapture.SimpleCallback() {
-                        @Override
-                        public void onEvent() {
-                            mPendingRecordingStop = false;
-                            if (mPendingRecordingStart) {
-                                mCaptureService.isRecording(isRecordingCallback);
-                            }
-                        }
-                    });
-                }
-            } else if (!currentlyRecording && !mPendingRecordingStart){
-                mPendingRecordingStart = true;
-                if (!mPendingRecordingStop) {
-                    mCaptureService.startRecording(new TimeLapseCapture.SimpleCallback() {
-                        @Override
-                        public void onEvent() {
-                            mPendingRecordingStart = false;
-                            if (mPendingRecordingStop) {
-                                mCaptureService.isRecording(isRecordingCallback);
-                            }
-                        }
-                    });
-                }
-            }
         }
     };
 
@@ -136,18 +104,9 @@ public class Camera extends Activity implements TextureView.SurfaceTextureListen
     @Override
     public void onSensorChanged(SensorEvent event) {
         final int rotation = getWindowManager().getDefaultDisplay().getRotation();
-        if (rotation != mPreviousRotation) {
-            if (mCaptureService != null) {
-                mCaptureService.isRecording(new TimeLapseCapture.IsRecordingCallback() {
-                    @Override
-                    public void onReply(boolean currentlyRecording) {
-                        if (!currentlyRecording) {
-                            setSurfaceTransform(mPreviewView.getWidth(), mPreviewView.getHeight());
-                            mPreviousRotation = rotation;
-                        }
-                    }
-                });
-            }
+        if (rotation != mPreviousRotation && !mCurrentlyRecording) {
+            setSurfaceTransform(mPreviewView.getWidth(), mPreviewView.getHeight());
+            mPreviousRotation = rotation;
         }
     }
 
@@ -250,8 +209,26 @@ public class Camera extends Activity implements TextureView.SurfaceTextureListen
     }
 
     private void recordButtonClicked() {
-        if (mCaptureService != null && mCameraReady) {
-            mCaptureService.isRecording(isRecordingCallback);
+        if (mCameraReady) {
+            if (mCurrentlyRecording && !mPendingRecordingStop) {
+                mPendingRecordingStop = true;
+                mCaptureService.stopRecording(new TimeLapseCapture.SimpleCallback() {
+                    @Override
+                    public void onEvent() {
+                        mPendingRecordingStop = false;
+                        mCurrentlyRecording = false;
+                    }
+                });
+            } else if (!mCurrentlyRecording && !mPendingRecordingStart){
+                mPendingRecordingStart = true;
+                mCaptureService.startRecording(new TimeLapseCapture.SimpleCallback() {
+                    @Override
+                    public void onEvent() {
+                        mPendingRecordingStart = false;
+                        mCurrentlyRecording = true;
+                    }
+                });
+            }
         }
     }
 

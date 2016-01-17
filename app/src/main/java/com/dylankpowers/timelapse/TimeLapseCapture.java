@@ -2,7 +2,6 @@ package com.dylankpowers.timelapse;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
-import android.content.Context;
 import android.database.Cursor;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -18,6 +17,7 @@ import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.util.Log;
@@ -42,7 +42,9 @@ public class TimeLapseCapture {
     private CameraManager mCameraManager;
     private CameraCharacteristics mCameraCharacteristics;
     private SimpleCallback mCameraReadyCallback;
+    private Handler mCameraReadyCallbackHandler;
     private CameraCaptureSession mCaptureSession;
+    private boolean mCreatingCaptureSession = false;
     private ContentResolver mContentResolver;
     private boolean mCurrentlyRecording = false;
     private Display mDefaultDisplay;
@@ -51,7 +53,10 @@ public class TimeLapseCapture {
     private CamcorderProfile mRecordingSessionProfile;
     private MediaRecorder mVideo;
     private SimpleCallback mVideoRecorderStarted;
+    private Handler mVideoRecorderStartedHandler;
     private SimpleCallback mVideoRecorderStopped;
+    private Handler mVideoRecorderStoppedHandler;
+
 
     public TimeLapseCapture(CameraManager cameraManager,
                             Handler backgroundHandler,
@@ -67,8 +72,15 @@ public class TimeLapseCapture {
         @Override
         public void onOpened(@NonNull CameraDevice camera) {
             mCamera = camera;
-            mCameraReadyCallback.onEvent();
+            final SimpleCallback callback = mCameraReadyCallback;
+            mCameraReadyCallbackHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    callback.onEvent();
+                }
+            });
             mCameraReadyCallback = null;
+            mCameraReadyCallbackHandler = null;
 
             createPreviewCaptureSession();
         }
@@ -77,12 +89,14 @@ public class TimeLapseCapture {
         public void onDisconnected(@NonNull CameraDevice camera) {
             Log.d(TAG, "Camera Disconnected");
             camera.close();
+            mCamera = null;
         }
 
         @Override
         public void onError(@NonNull CameraDevice camera, int error) {
             Log.d(TAG, "Camera Error: " + error);
             camera.close();
+            mCamera = null;
         }
     };
 
@@ -100,10 +114,10 @@ public class TimeLapseCapture {
     };
 
     public synchronized void close() {
-        if (mVideo != null) {
-            mBackgroundHandler.post(new Runnable() {
-                @Override
-                public void run() {
+        mBackgroundHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (mVideo != null) {
                     if (mCurrentlyRecording) {
                         stopRecordingSync();
                         mCurrentlyRecording = false;
@@ -112,9 +126,11 @@ public class TimeLapseCapture {
                     mVideo.release();
                     mVideo = null;
                 }
-            });
-        }
 
+            }
+        });
+
+        // The capture session and camera should be closed synchronously
         if (mCaptureSession != null) {
             mCaptureSession.close();
             mCaptureSession = null;
@@ -125,9 +141,8 @@ public class TimeLapseCapture {
     }
 
     private synchronized void createRecordingCaptureSession() {
-        if (mCaptureSession != null) {
-            mCaptureSession.close();
-            mCaptureSession = null;
+        if (mCreatingCaptureSession) {
+            throw new RuntimeException("Capture session already being created");
         }
 
         if (mCamera != null) {
@@ -143,15 +158,23 @@ public class TimeLapseCapture {
                                 mVideo.start();
                                 mCurrentlyRecording = true;
                                 Log.d(TAG, "Video recorder started.");
-                                mVideoRecorderStarted.onEvent();
+                                final SimpleCallback callback = mVideoRecorderStarted;
+                                mVideoRecorderStartedHandler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        callback.onEvent();
+                                    }
+                                });
                                 mVideoRecorderStarted = null;
+                                mVideoRecorderStartedHandler = null;
                             }
 
                             @Override
                             public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                                 Log.d(TAG, "Camera capture session configure failed.");
                             }
-                        }, mBackgroundHandler);
+                        }, null);
+                mCreatingCaptureSession = true;
             } catch (CameraAccessException e) {
                 throw new RuntimeException("Can't access the camera.", e);
             }
@@ -159,11 +182,6 @@ public class TimeLapseCapture {
     }
 
     private synchronized void createPreviewCaptureSession() {
-        if (mCaptureSession != null) {
-            mCaptureSession.close();
-            mCaptureSession = null;
-        }
-
         if (mCamera != null) {
             try {
                 mCamera.createCaptureSession(
@@ -172,13 +190,25 @@ public class TimeLapseCapture {
                             @Override
                             public void onConfigured(@NonNull CameraCaptureSession session) {
                                 onCaptureSessionConfigured(session, CameraDevice.TEMPLATE_PREVIEW);
+
+                                if (mVideoRecorderStopped != null) {
+                                    final SimpleCallback callback = mVideoRecorderStopped;
+                                    mVideoRecorderStoppedHandler.post(new Runnable() {                                        @Override
+                                        public void run() {
+                                            callback.onEvent();
+                                        }
+                                    });
+                                    mVideoRecorderStopped = null;
+                                    mVideoRecorderStoppedHandler = null;
+                                }
                             }
 
                             @Override
                             public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                                 Log.d(TAG, "Camera capture session configure failed.");
                             }
-                        }, mBackgroundHandler);
+                        }, null);
+                mCreatingCaptureSession = true;
             } catch (CameraAccessException e) {
                 throw new RuntimeException("Can't access the camera.", e);
             }
@@ -224,16 +254,6 @@ public class TimeLapseCapture {
         return filename;
     }
 
-    public void isRecording(final IsRecordingCallback callback) {
-        // Run on the background thread or else concurrency issues could result
-        mBackgroundHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                callback.onReply(mCurrentlyRecording);
-            }
-        });
-    }
-
     private synchronized void onCaptureSessionConfigured(
             CameraCaptureSession session, int sessionTemplateType) {
         Log.d(TAG, "configured");
@@ -259,49 +279,72 @@ public class TimeLapseCapture {
         } catch (CameraAccessException e) {
             throw new RuntimeException("Can't access the camera", e);
         }
+        mCreatingCaptureSession = false;
     }
 
     public void open(Surface previewSurface, SimpleCallback callback) {
         mPreviewSurface = previewSurface;
         mCameraReadyCallback = callback;
+        mCameraReadyCallbackHandler = new Handler(Looper.myLooper());
 
-        String rearCameraId = findRearCameraId();
-        try {
-            mCameraCharacteristics = mCameraManager.getCameraCharacteristics(rearCameraId);
-            mCameraManager.openCamera(rearCameraId, mCameraStateCallback, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            throw new RuntimeException("Unable to access the camera.", e);
-        } catch (SecurityException e) {
-            throw new RuntimeException("Security exception opening the camera. " +
-                    "This shouldn't have happened!", e);
-        }
+        mBackgroundHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                String rearCameraId = findRearCameraId();
+                try {
+                    mCameraCharacteristics = mCameraManager.getCameraCharacteristics(rearCameraId);
+                    mCameraManager.openCamera(rearCameraId, mCameraStateCallback, mBackgroundHandler);
+                } catch (CameraAccessException e) {
+                    throw new RuntimeException("Unable to access the camera.", e);
+                } catch (SecurityException e) {
+                    throw new RuntimeException("Security exception opening the camera. " +
+                            "This shouldn't have happened!", e);
+                }
+            }
+        });
     }
 
     public void startRecording(SimpleCallback callback) {
         mVideoRecorderStarted = callback;
+        mVideoRecorderStartedHandler = new Handler(Looper.myLooper());
+
+        if (mCreatingCaptureSession) {
+            throw new RuntimeException("Invalid recording state.");
+        }
+
         mBackgroundHandler.post(new Runnable() {
             @Override
             public void run() {
+                if (mCaptureSession != null) {
+                    mCaptureSession.close();
+                    mCaptureSession = null;
+                }
                 createRecordingCaptureSession();
             }
         });
     }
 
-    public void stopRecording(SimpleCallback callback) {
+    public void stopRecording(final SimpleCallback callback) {
         mVideoRecorderStopped = callback;
+        mVideoRecorderStoppedHandler = new Handler(Looper.myLooper());
+
+        if (mCreatingCaptureSession) {
+            throw new RuntimeException("Invalid stopping state.");
+        }
+
         mBackgroundHandler.post(new Runnable() {
             @Override
             public void run() {
                 try {
                     stopRecordingSync();
-                    mCurrentlyRecording = false;
-                    Log.d(TAG, "Video recorder stopped.");
-                    mVideoRecorderStopped.onEvent();
-                    mVideoRecorderStopped = null;
                 } catch (RuntimeException e) {
                     Log.d(TAG, "Nothing was recorded");
                 }
 
+                mCurrentlyRecording = false;
+                Log.d(TAG, "Video recorder stopped.");
+
+                mCaptureSession.close();
                 createPreviewCaptureSession();
             }
         });

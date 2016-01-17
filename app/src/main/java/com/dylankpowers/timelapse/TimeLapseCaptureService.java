@@ -21,6 +21,10 @@ public class TimeLapseCaptureService extends Service {
     private final IBinder mBinder = new ServiceBinder();
     private TimeLapseCapture mCapture;
 
+    public void closeCamera() {
+        mCapture.close();
+    }
+
     @Override
     public IBinder onBind(Intent intent) {
         return mBinder;
@@ -65,14 +69,6 @@ public class TimeLapseCaptureService extends Service {
     public void openCamera(final Surface previewSurface,
                            final TimeLapseCapture.SimpleCallback callback) {
         mCapture.open(previewSurface, callback);
-    }
-
-    public void closeCamera() {
-        mCapture.close();
-    }
-
-    public void isRecording(TimeLapseCapture.IsRecordingCallback callback) {
-        mCapture.isRecording(callback);
     }
 
     public void startRecording(TimeLapseCapture.SimpleCallback callback) {
