@@ -131,12 +131,8 @@ public class TimeLapseCapture {
         });
 
         // The capture session and camera should be closed synchronously
-        if (mCaptureSession != null) {
-            mCaptureSession.close();
-            mCaptureSession = null;
-        }
-
         mCamera.close();
+        mCaptureSession = null;
         mCamera = null;
     }
 
@@ -315,10 +311,6 @@ public class TimeLapseCapture {
         mBackgroundHandler.post(new Runnable() {
             @Override
             public void run() {
-                if (mCaptureSession != null) {
-                    mCaptureSession.close();
-                    mCaptureSession = null;
-                }
                 createRecordingCaptureSession();
             }
         });
@@ -336,6 +328,12 @@ public class TimeLapseCapture {
             @Override
             public void run() {
                 try {
+                    mCaptureSession.stopRepeating();
+                } catch (CameraAccessException e) {
+                    e.printStackTrace();
+                }
+
+                try {
                     stopRecordingSync();
                 } catch (RuntimeException e) {
                     Log.d(TAG, "Nothing was recorded");
@@ -344,7 +342,6 @@ public class TimeLapseCapture {
                 mCurrentlyRecording = false;
                 Log.d(TAG, "Video recorder stopped.");
 
-                mCaptureSession.close();
                 createPreviewCaptureSession();
             }
         });
