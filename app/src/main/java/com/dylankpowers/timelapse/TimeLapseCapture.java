@@ -127,6 +127,7 @@ public class TimeLapseCapture {
     private synchronized void createRecordingCaptureSession() {
         if (mCaptureSession != null) {
             mCaptureSession.close();
+            mCaptureSession = null;
         }
 
         if (mCamera != null) {
