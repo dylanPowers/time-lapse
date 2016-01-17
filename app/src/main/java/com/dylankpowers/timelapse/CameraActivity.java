@@ -26,7 +26,7 @@ import android.view.View;
 import android.widget.Button;
 
 
-public class Camera extends Activity implements TextureView.SurfaceTextureListener, SensorEventListener {
+public class CameraActivity extends Activity implements TextureView.SurfaceTextureListener, SensorEventListener {
     private static final String TAG = "TimeLapseActivity";
 
     private boolean mCameraReady = false;
