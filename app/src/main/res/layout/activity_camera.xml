@@ -23,6 +23,7 @@
         android:layout_gravity="center_vertical|right"
         android:layout_marginRight="50dp"
         android:clickable="true"
-        android:enabled="true"/>
+        android:enabled="true"
+        android:elevation="5dp"/>
 
 </FrameLayout>
