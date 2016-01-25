@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res/com.dylankpowers.timelapse">
+    <item
+        app:state_recording="false"
+        android:color="@color/recordingIconAlt" />
+    <item
+        app:state_recording="true"
+        android:color="@color/recordingIcon" />
+</selector>

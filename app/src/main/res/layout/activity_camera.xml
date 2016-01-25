@@ -2,8 +2,10 @@
              xmlns:tools="http://schemas.android.com/tools"
              android:layout_width="match_parent"
              android:layout_height="match_parent"
+             xmlns:app="http://schemas.android.com/apk/res-auto"
              android:background="@color/black"
-             tools:context=".CameraActivity">
+             tools:context=".CameraActivity"
+    android:clipChildren="false">
 
     <!-- The primary full-screen view. This can be replaced with whatever view
          is needed to present your content, e.g. VideoView, SurfaceView,
@@ -13,17 +15,30 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:gravity="center"
-        android:keepScreenOn="true"/>
+        android:keepScreenOn="true" />
 
-    <Button
+
+    <com.dylankpowers.timelapse.RecordingButton
+        android:id="@+id/start_recording_button"
+        app:backgroundTint="@color/recording_fab_bg"
+        android:src="@drawable/recording_icon"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Capture"
-        android:id="@+id/capture_button"
         android:layout_gravity="center_vertical|right"
-        android:layout_marginRight="50dp"
-        android:clickable="true"
-        android:enabled="true"
-        android:elevation="5dp"/>
+        android:layout_marginEnd="@dimen/record_button_end"
+        android:elevation="1dp"/>
+
+
+    <!--<android.support.design.widget.FloatingActionButton-->
+        <!--android:id="@+id/stop_recording_button"-->
+        <!--app:backgroundTint="@color/recordingIcon"-->
+        <!--android:layout_gravity="center_vertical|right"-->
+        <!--android:layout_height="wrap_content"-->
+        <!--android:layout_marginEnd="@dimen/record_button_end"-->
+        <!--android:layout_width="wrap_content"-->
+        <!--android:visibility="gone"-->
+        <!--android:elevation="1dp"-->
+        <!--android:src="@drawable/stop_recording_icon"/>-->
+
 
 </FrameLayout>

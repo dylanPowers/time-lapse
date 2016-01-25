@@ -2,7 +2,6 @@ package com.dylankpowers.timelapse;
 
 import android.Manifest;
 import android.annotation.TargetApi;
-import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -17,20 +16,26 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.NonNull;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
-import android.widget.Button;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 
 
-public class CameraActivity extends Activity implements TextureView.SurfaceTextureListener, SensorEventListener {
+public class CameraActivity extends AppCompatActivity implements TextureView.SurfaceTextureListener, SensorEventListener {
     private static final String TAG = "TimeLapseActivity";
 
     private boolean mCameraReady = false;
-    private Button mCaptureButton;
+    private RecordingButton mStartRecordingButton;
+//    private FloatingActionButton mStopRecordingButton;
+    private Animation mRecordingButtonInAnim;
+    private Animation mRecordingButtonOutAnim;
     private TimeLapseCaptureService mCaptureService;
     private boolean mCaptureServiceBound;
     private boolean mCurrentlyRecording = false;
@@ -77,13 +82,25 @@ public class CameraActivity extends Activity implements TextureView.SurfaceTextu
 
         setContentView(R.layout.activity_camera);
         mPreviewView = (TextureView) findViewById(R.id.camera_preview);
-        mCaptureButton = (Button) findViewById(R.id.capture_button);
-        mCaptureButton.setOnClickListener(new View.OnClickListener() {
+        mStartRecordingButton = (RecordingButton) findViewById(R.id.start_recording_button);
+        mStartRecordingButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 recordButtonClicked();
             }
         });
+
+//        mStopRecordingButton = (FloatingActionButton) findViewById(R.id.stop_recording_button);
+//        mStopRecordingButton.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                recordButtonClicked();
+//            }
+//        });
+
+        mRecordingButtonInAnim = AnimationUtils.loadAnimation(this, R.anim.recording_button_in);
+        mRecordingButtonOutAnim = AnimationUtils.loadAnimation(this, R.anim.recording_button_out);
+
 
         SensorManager sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         Sensor rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
@@ -210,22 +227,111 @@ public class CameraActivity extends Activity implements TextureView.SurfaceTextu
 
     private void recordButtonClicked() {
         if (mCameraReady) {
-            if (mCurrentlyRecording && !mPendingRecordingStop) {
-                mPendingRecordingStop = true;
-                mCaptureService.stopRecording(new TimeLapseCapture.SimpleCallback() {
+            if (!mCurrentlyRecording && !mPendingRecordingStart){
+                Log.d(TAG, "Starting recording");
+                mPendingRecordingStart = true;
+//                final Animation startRecordingAnim =
+
+//                final Animation startAnim = AnimationUtils.loadAnimation(this, R.anim.start_recording);
+//                mStartRecordingButton.setAnimation(startAnim);
+//                mStartRecordingButton.setClipBounds(new Rect(-27, 27, 27, -27));
+
+//                mStartRecordingButton.setVisibility(View.INVISIBLE);
+//                long start = System.currentTimeMillis();
+//                stopAnim.setZAdjustment(Animation.ZORDER_TOP);
+
+//                long loadAnimationTime = System.currentTimeMillis();
+//                mStopRecordingButton.setVisibility(View.VISIBLE);
+//                mStopRecordingButton.requestFocus();
+//                mStopRecordingButton.bringToFront();
+//                mStopRecordingButton.getParent().requestLayout();
+//                ((FrameLayout) mStopRecordingButton.getParent()).invalidate();
+//
+//                mStartRecordingButton.setVisibility(View.VISIBLE);
+//                        mStartRecordingButton.setRecording(true);
+                mRecordingButtonOutAnim.setAnimationListener(new Animation.AnimationListener() {
+
                     @Override
-                    public void onEvent() {
-                        mPendingRecordingStop = false;
-                        mCurrentlyRecording = false;
+                    public void onAnimationStart(Animation animation) {
+                        Log.d(TAG, "You know 1");
+                    }
+
+                    @Override
+                    public void onAnimationEnd(Animation animation) {
+//                        mStartRecordingButton.setVisibility(View.GONE);
+//                        mStopRecordingButton.setElevation(1.0f);
+                        Log.d(TAG, "Starting record animation stopped???");
+                        mStartRecordingButton.setRecording(true);
+//                        mStartRecordingButton.refreshDrawableState();
+                        mStartRecordingButton.startAnimation(mRecordingButtonInAnim);
+                    }
+
+                    @Override
+                    public void onAnimationRepeat(Animation animation) {
+                        Log.d(TAG, "REPEATING animation");
                     }
                 });
-            } else if (!mCurrentlyRecording && !mPendingRecordingStart){
-                mPendingRecordingStart = true;
-                mCaptureService.startRecording(new TimeLapseCapture.SimpleCallback() {
+                mStartRecordingButton.startAnimation(mRecordingButtonOutAnim);
+//                mStopRecordingButton.setAnimation(mStartRecordingButtonAnim);
+//                mStopRecordingButton.setElevation(0.0f);
+//                mStartRecordingButton.invalidate();
+//                mRecordingButtonOutAnim.startNow();
+//                getWindow().setSharedElementsUseOverlay(false);
+//                ObjectAnimator scaleXAnim = ObjectAnimator.ofFloat(mStopRecordingButton, "scaleX", 0.0f, 1.0f);
+//                scaleXAnim.start();
+//                long setEverythingTime = System.currentTimeMillis();
+//                Log.d(TAG, "Load: " + (loadAnimationTime - start) +
+//                        " - Setting: " + (setEverythingTime - start));
+//                mCaptureService.startRecording(new TimeLapseCapture.SimpleCallback() {
+//                    @Override
+//                    public void onEvent() {
+                new Handler(getMainLooper()).post(new Runnable() {
                     @Override
-                    public void onEvent() {
+                    public void run() {
                         mPendingRecordingStart = false;
                         mCurrentlyRecording = true;
+                    }
+                });
+            } else if (mCurrentlyRecording && !mPendingRecordingStop) {
+                mPendingRecordingStop = true;
+                Log.d(TAG, "Stopping recording");
+//                        mStartRecordingButton.setRecording(false);
+
+//                final Animation stopAnim = AnimationUtils.loadAnimation(this, R.anim.start_recording_stop_button);
+//                mStartRecordingButton.setVisibility(View.VISIBLE);
+                mRecordingButtonOutAnim.setAnimationListener(new Animation.AnimationListener() {
+                    @Override
+                    public void onAnimationStart(Animation animation) {
+                        Log.d(TAG, "You know 2");
+                    }
+
+                    @Override
+                    public void onAnimationEnd(Animation animation) {
+//                        mStopRecordingButton.setVisibility(View.GONE);
+                        Log.d(TAG, "Stopping recording animation stopped??");
+                        mStartRecordingButton.setRecording(false);
+                        mStartRecordingButton.startAnimation(mRecordingButtonInAnim);
+                    }
+
+                    @Override
+                    public void onAnimationRepeat(Animation animation) {
+                    }
+                });
+//                mStartRecordingButton.setAnimation(mRecordingButtonOutAnim);
+                mStartRecordingButton.startAnimation(mRecordingButtonOutAnim);
+//                mRecordingButtonOutAnim.setRepeatMode(Animation.REVERSE);
+//                mRecordingButtonOutAnim.setRepeatCount(1);
+//                mStopRecordingButton.setAnimation(mStopRecordingButtonAnim);
+//                mStopRecordingButtonAnim.startNow();
+//                mStartRecordingButton.setAnimation(stopAnim);
+                new Handler(getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+//                mCaptureService.stopRecording(new TimeLapseCapture.SimpleCallback() {
+//                    @Override
+//                    public void onEvent() {
+                        mPendingRecordingStop = false;
+                        mCurrentlyRecording = false;
                     }
                 });
             }
