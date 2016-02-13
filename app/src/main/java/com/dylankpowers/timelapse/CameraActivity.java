@@ -1,6 +1,8 @@
 package com.dylankpowers.timelapse;
 
 import android.Manifest;
+import android.animation.Animator;
+import android.animation.ObjectAnimator;
 import android.annotation.TargetApi;
 import android.content.ComponentName;
 import android.content.Context;
@@ -24,6 +26,7 @@ import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
+import android.view.ViewAnimationUtils;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 
@@ -32,10 +35,11 @@ public class CameraActivity extends AppCompatActivity implements TextureView.Sur
     private static final String TAG = "TimeLapseActivity";
 
     private boolean mCameraReady = false;
+    private View mPreviewOverlay;
     private RecordingButton mStartRecordingButton;
-//    private FloatingActionButton mStopRecordingButton;
     private Animation mRecordingButtonInAnim;
     private Animation mRecordingButtonOutAnim;
+    private Animation mPreviewOverlayFadeOut;
     private TimeLapseCaptureService mCaptureService;
     private boolean mCaptureServiceBound;
     private boolean mCurrentlyRecording = false;
@@ -82,6 +86,7 @@ public class CameraActivity extends AppCompatActivity implements TextureView.Sur
 
         setContentView(R.layout.activity_camera);
         mPreviewView = (TextureView) findViewById(R.id.camera_preview);
+        mPreviewOverlay = findViewById(R.id.camera_preview_overlay);
         mStartRecordingButton = (RecordingButton) findViewById(R.id.start_recording_button);
         mStartRecordingButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -90,16 +95,25 @@ public class CameraActivity extends AppCompatActivity implements TextureView.Sur
             }
         });
 
-//        mStopRecordingButton = (FloatingActionButton) findViewById(R.id.stop_recording_button);
-//        mStopRecordingButton.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//                recordButtonClicked();
-//            }
-//        });
-
         mRecordingButtonInAnim = AnimationUtils.loadAnimation(this, R.anim.recording_button_in);
         mRecordingButtonOutAnim = AnimationUtils.loadAnimation(this, R.anim.recording_button_out);
+        mPreviewOverlayFadeOut = AnimationUtils.loadAnimation(this, R.anim.preview_overlay_fade_out);
+        mPreviewOverlayFadeOut.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {
+
+            }
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                mPreviewOverlay.setVisibility(View.GONE);
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {
+
+            }
+        });
 
 
         SensorManager sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
@@ -230,64 +244,28 @@ public class CameraActivity extends AppCompatActivity implements TextureView.Sur
             if (!mCurrentlyRecording && !mPendingRecordingStart){
                 Log.d(TAG, "Starting recording");
                 mPendingRecordingStart = true;
-//                final Animation startRecordingAnim =
-
-//                final Animation startAnim = AnimationUtils.loadAnimation(this, R.anim.start_recording);
-//                mStartRecordingButton.setAnimation(startAnim);
-//                mStartRecordingButton.setClipBounds(new Rect(-27, 27, 27, -27));
-
-//                mStartRecordingButton.setVisibility(View.INVISIBLE);
-//                long start = System.currentTimeMillis();
-//                stopAnim.setZAdjustment(Animation.ZORDER_TOP);
-
-//                long loadAnimationTime = System.currentTimeMillis();
-//                mStopRecordingButton.setVisibility(View.VISIBLE);
-//                mStopRecordingButton.requestFocus();
-//                mStopRecordingButton.bringToFront();
-//                mStopRecordingButton.getParent().requestLayout();
-//                ((FrameLayout) mStopRecordingButton.getParent()).invalidate();
-//
-//                mStartRecordingButton.setVisibility(View.VISIBLE);
-//                        mStartRecordingButton.setRecording(true);
                 mRecordingButtonOutAnim.setAnimationListener(new Animation.AnimationListener() {
 
                     @Override
-                    public void onAnimationStart(Animation animation) {
-                        Log.d(TAG, "You know 1");
-                    }
+                    public void onAnimationStart(Animation animation) {}
 
                     @Override
                     public void onAnimationEnd(Animation animation) {
-//                        mStartRecordingButton.setVisibility(View.GONE);
-//                        mStopRecordingButton.setElevation(1.0f);
-                        Log.d(TAG, "Starting record animation stopped???");
                         mStartRecordingButton.setRecording(true);
-//                        mStartRecordingButton.refreshDrawableState();
                         mStartRecordingButton.startAnimation(mRecordingButtonInAnim);
                     }
 
                     @Override
-                    public void onAnimationRepeat(Animation animation) {
-                        Log.d(TAG, "REPEATING animation");
-                    }
+                    public void onAnimationRepeat(Animation animation) {}
                 });
+                circularReveal();
                 mStartRecordingButton.startAnimation(mRecordingButtonOutAnim);
-//                mStopRecordingButton.setAnimation(mStartRecordingButtonAnim);
-//                mStopRecordingButton.setElevation(0.0f);
-//                mStartRecordingButton.invalidate();
-//                mRecordingButtonOutAnim.startNow();
-//                getWindow().setSharedElementsUseOverlay(false);
-//                ObjectAnimator scaleXAnim = ObjectAnimator.ofFloat(mStopRecordingButton, "scaleX", 0.0f, 1.0f);
-//                scaleXAnim.start();
-//                long setEverythingTime = System.currentTimeMillis();
-//                Log.d(TAG, "Load: " + (loadAnimationTime - start) +
-//                        " - Setting: " + (setEverythingTime - start));
-//                mCaptureService.startRecording(new TimeLapseCapture.SimpleCallback() {
-//                    @Override
-//                    public void onEvent() {
-                new Handler(getMainLooper()).post(new Runnable() {
+                mCaptureService.startRecording(new TimeLapseCapture.SimpleCallback() {
                     @Override
-                    public void run() {
+                    public void onEvent() {
+//                new Handler(getMainLooper()).post(new Runnable() {
+//                    @Override
+//                    public void run() {
                         mPendingRecordingStart = false;
                         mCurrentlyRecording = true;
                     }
@@ -295,20 +273,13 @@ public class CameraActivity extends AppCompatActivity implements TextureView.Sur
             } else if (mCurrentlyRecording && !mPendingRecordingStop) {
                 mPendingRecordingStop = true;
                 Log.d(TAG, "Stopping recording");
-//                        mStartRecordingButton.setRecording(false);
 
-//                final Animation stopAnim = AnimationUtils.loadAnimation(this, R.anim.start_recording_stop_button);
-//                mStartRecordingButton.setVisibility(View.VISIBLE);
                 mRecordingButtonOutAnim.setAnimationListener(new Animation.AnimationListener() {
                     @Override
-                    public void onAnimationStart(Animation animation) {
-                        Log.d(TAG, "You know 2");
-                    }
+                    public void onAnimationStart(Animation animation) { }
 
                     @Override
                     public void onAnimationEnd(Animation animation) {
-//                        mStopRecordingButton.setVisibility(View.GONE);
-                        Log.d(TAG, "Stopping recording animation stopped??");
                         mStartRecordingButton.setRecording(false);
                         mStartRecordingButton.startAnimation(mRecordingButtonInAnim);
                     }
@@ -317,25 +288,52 @@ public class CameraActivity extends AppCompatActivity implements TextureView.Sur
                     public void onAnimationRepeat(Animation animation) {
                     }
                 });
-//                mStartRecordingButton.setAnimation(mRecordingButtonOutAnim);
+                circularReveal();
                 mStartRecordingButton.startAnimation(mRecordingButtonOutAnim);
-//                mRecordingButtonOutAnim.setRepeatMode(Animation.REVERSE);
-//                mRecordingButtonOutAnim.setRepeatCount(1);
-//                mStopRecordingButton.setAnimation(mStopRecordingButtonAnim);
-//                mStopRecordingButtonAnim.startNow();
-//                mStartRecordingButton.setAnimation(stopAnim);
-                new Handler(getMainLooper()).post(new Runnable() {
-                    @Override
-                    public void run() {
-//                mCaptureService.stopRecording(new TimeLapseCapture.SimpleCallback() {
+//                new Handler(getMainLooper()).post(new Runnable() {
 //                    @Override
-//                    public void onEvent() {
+//                    public void run() {
+                mCaptureService.stopRecording(new TimeLapseCapture.SimpleCallback() {
+                    @Override
+                    public void onEvent() {
                         mPendingRecordingStop = false;
                         mCurrentlyRecording = false;
                     }
                 });
             }
         }
+    }
+
+    private void circularReveal() {
+        int x = mStartRecordingButton.getLeft() + mStartRecordingButton.getWidth() / 2;
+        int y = mStartRecordingButton.getTop() + mStartRecordingButton.getHeight() / 2;
+
+        // get the final radius for the clipping circle
+        float finalRadius = (float) Math.hypot(x, mPreviewOverlay.getHeight() / 2);
+
+        // create the animator for this view (the start radius is zero)
+        Animator anim =
+            ViewAnimationUtils.createCircularReveal(mPreviewOverlay, x, y, 0, finalRadius);
+        anim.setDuration(200);
+
+        // make the view visible and start the animation
+        mPreviewOverlay.setVisibility(View.VISIBLE);
+        anim.start();
+        anim.addListener(new Animator.AnimatorListener() {
+            @Override
+            public void onAnimationStart(Animator animation) { }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                mPreviewOverlay.startAnimation(mPreviewOverlayFadeOut);
+            }
+
+            @Override
+            public void onAnimationCancel(Animator animation) { }
+
+            @Override
+            public void onAnimationRepeat(Animator animation) { }
+        });
     }
 
     private void unbindTimeLapseCaptureService() {

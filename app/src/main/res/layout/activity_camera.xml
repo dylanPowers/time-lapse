@@ -5,11 +5,9 @@
              xmlns:app="http://schemas.android.com/apk/res-auto"
              android:background="@color/black"
              tools:context=".CameraActivity"
-    android:clipChildren="false">
+             android:clipChildren="false"
+             android:focusable="true">
 
-    <!-- The primary full-screen view. This can be replaced with whatever view
-         is needed to present your content, e.g. VideoView, SurfaceView,
-         TextureView, etc. -->
     <TextureView
         android:id="@+id/camera_preview"
         android:layout_width="match_parent"
@@ -17,6 +15,14 @@
         android:gravity="center"
         android:keepScreenOn="true" />
 
+    <View
+        android:id="@+id/camera_preview_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:background="#7f585858"
+        android:focusableInTouchMode="true"
+        android:visibility="gone"/>
 
     <com.dylankpowers.timelapse.RecordingButton
         android:id="@+id/start_recording_button"
@@ -27,18 +33,5 @@
         android:layout_gravity="center_vertical|right"
         android:layout_marginEnd="@dimen/record_button_end"
         android:elevation="1dp"/>
-
-
-    <!--<android.support.design.widget.FloatingActionButton-->
-        <!--android:id="@+id/stop_recording_button"-->
-        <!--app:backgroundTint="@color/recordingIcon"-->
-        <!--android:layout_gravity="center_vertical|right"-->
-        <!--android:layout_height="wrap_content"-->
-        <!--android:layout_marginEnd="@dimen/record_button_end"-->
-        <!--android:layout_width="wrap_content"-->
-        <!--android:visibility="gone"-->
-        <!--android:elevation="1dp"-->
-        <!--android:src="@drawable/stop_recording_icon"/>-->
-
 
 </FrameLayout>

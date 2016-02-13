@@ -36,6 +36,7 @@ public class TimeLapseCapture {
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
                 .getAbsolutePath() + "/TimeLapse";
     private static final int VIDEO_FPS = 60;
+    private static final double CAPTURE_RATE = VIDEO_FPS / 100.0;
 
     private Handler mBackgroundHandler;
     private CameraDevice mCamera;
@@ -377,7 +378,7 @@ public class TimeLapseCapture {
         mVideo = new MediaRecorder();
         mVideo.setVideoSource(MediaRecorder.VideoSource.SURFACE);
         mVideo.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-        mVideo.setCaptureRate(15);
+        mVideo.setCaptureRate(CAPTURE_RATE);
 
         int videoOrientation = mCameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION) - 90;
         int deviceRotation = mDefaultDisplay.getRotation();
