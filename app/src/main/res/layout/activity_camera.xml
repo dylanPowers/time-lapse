@@ -30,7 +30,7 @@
         android:src="@drawable/recording_icon"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_vertical|right"
+        android:layout_gravity="center_vertical|end"
         android:layout_marginEnd="@dimen/record_button_end"
         android:elevation="1dp"/>
 
