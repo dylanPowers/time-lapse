@@ -2,7 +2,6 @@ package com.dylankpowers.timelapse;
 
 import android.Manifest;
 import android.animation.Animator;
-import android.animation.ObjectAnimator;
 import android.annotation.TargetApi;
 import android.content.ComponentName;
 import android.content.Context;
@@ -18,15 +17,13 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.NonNull;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.view.Surface;
-import android.view.TextureView;
-import android.view.View;
-import android.view.ViewAnimationUtils;
+import android.view.*;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 
@@ -35,6 +32,8 @@ public class CameraActivity extends AppCompatActivity implements TextureView.Sur
     private static final String TAG = "TimeLapseActivity";
 
     private boolean mCameraReady = false;
+    private DrawerLayout mDrawerLayout;
+    private ActionBarDrawerToggle mDrawerToggle;
     private View mPreviewOverlay;
     private RecordingButton mStartRecordingButton;
     private Animation mRecordingButtonInAnim;
@@ -100,9 +99,7 @@ public class CameraActivity extends AppCompatActivity implements TextureView.Sur
         mPreviewOverlayFadeOut = AnimationUtils.loadAnimation(this, R.anim.preview_overlay_fade_out);
         mPreviewOverlayFadeOut.setAnimationListener(new Animation.AnimationListener() {
             @Override
-            public void onAnimationStart(Animation animation) {
-
-            }
+            public void onAnimationStart(Animation animation) { }
 
             @Override
             public void onAnimationEnd(Animation animation) {
@@ -110,11 +107,33 @@ public class CameraActivity extends AppCompatActivity implements TextureView.Sur
             }
 
             @Override
-            public void onAnimationRepeat(Animation animation) {
-
-            }
+            public void onAnimationRepeat(Animation animation) { }
         });
 
+        mDrawerLayout = (DrawerLayout) findViewById(R.id.drawerLayout);
+        if (mDrawerLayout != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            mDrawerToggle = new ActionBarDrawerToggle(this, mDrawerLayout,
+                    R.string.drawer_open, R.string.drawer_close) {
+                @Override
+                public void onDrawerOpened(View drawerView) {
+                    super.onDrawerOpened(drawerView);
+
+                    invalidateOptionsMenu();
+                }
+
+                @Override
+                public void onDrawerClosed(View drawerView) {
+                    super.onDrawerClosed(drawerView);
+                    Log.d(TAG, "onDrawerClosed: " + getTitle());
+
+                    invalidateOptionsMenu();
+                }
+            };
+            mDrawerLayout.setDrawerListener(mDrawerToggle);
+        } else {
+            Log.e(TAG, "Missing drawer layout");
+        }
 
         SensorManager sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         Sensor rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
@@ -128,8 +147,23 @@ public class CameraActivity extends AppCompatActivity implements TextureView.Sur
     }
 
     @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Pass the event to ActionBarDrawerToggle
+        // If it returns true, then it has handled
+        // the nav drawer indicator touch event
+        if (mDrawerToggle.onOptionsItemSelected(item)) {
+          return true;
+        }
+
+        // Handle your other action bar items...
+
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
     protected void onPostCreate(Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
+        mDrawerToggle.syncState();
     }
 
     @Override
